@@ -19,8 +19,20 @@ import makeWASocket, {
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 
+// Configuración opcional en un archivo conector.env (CLAVE=VALOR por línea) junto al programa.
+// Lo usa la instalación en Windows, donde no hay variables de entorno de un servicio.
+for (const f of [process.env.CONFIG_FILE, path.join(process.cwd(), "conector.env")].filter(Boolean)) {
+  if (!fs.existsSync(f)) continue;
+  for (const line of fs.readFileSync(f, "utf8").split(/\r?\n/)) {
+    const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*?)\s*$/);
+    if (m && process.env[m[1]] === undefined) process.env[m[1]] = m[2];
+  }
+  break;
+}
+
 const PORT = Number(process.env.PORT || 3000);
-const DATA = process.env.DATA_DIR || "/data";
+const DATA = process.env.DATA_DIR || (process.platform === "win32" ? path.join(process.cwd(), "datos") : "/data");
+const PUBLIC_URL = (process.env.PUBLIC_URL || "").replace(/\/+$/, "");
 const TOKEN = process.env.TOKEN || "";
 const TZ = process.env.TZ_REPORTE || "America/Argentina/Buenos_Aires";
 const MAX_IMG = 6 * 1024 * 1024;
@@ -270,7 +282,7 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<":
 app.get("/admin", async (req, res) => {
   if (!okToken(req.query.token)) return res.status(404).end();
   const qr = !estado.conectado && estado.qr ? await QRCode.toDataURL(estado.qr, { margin: 1, width: 320 }) : null;
-  const base = `${req.protocol}://${req.get("host")}`;
+  const base = PUBLIC_URL || `${req.protocol}://${req.get("host")}`;
   res.type("html").send(`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Conector WhatsApp · Bitácora</title>
 <style>body{font:15px system-ui,sans-serif;max-width:760px;margin:0 auto;padding:16px;color:#172029;background:#EDEFF1}
@@ -297,5 +309,6 @@ app.post("/admin/grupos", (req, res) => {
   res.redirect(303, "/admin?token=" + encodeURIComponent(req.query.token));
 });
 
-app.listen(PORT, () => console.log(`Conector escuchando en :${PORT}`));
+// HOST=127.0.0.1 en Windows: solo escucha en la PC (el túnel de Tailscale llega por ahí) y no dispara el aviso del firewall.
+app.listen(PORT, process.env.HOST || "0.0.0.0", () => console.log(`Conector escuchando en ${process.env.HOST || "0.0.0.0"}:${PORT}`));
 if (process.env.SIN_WHATSAPP !== "1") conectar().catch(e => { console.error(e); estado.error = String(e.message || e); });
