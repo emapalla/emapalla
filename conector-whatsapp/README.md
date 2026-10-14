@@ -8,7 +8,25 @@ Este programa queda prendido las 24 h en un servidor y hace tres cosas:
 
 > **Riesgo:** WhatsApp no autoriza oficialmente vincular programas de esta forma y puede suspender el número. Conviene usar un **número o chip dedicado** (por ejemplo un celular de la empresa), sumarlo a los grupos de los rigs y vincular ese número, no tu WhatsApp personal. El celular de ese número tiene que conectarse a internet al menos una vez cada 14 días para que la vinculación no se caiga.
 
-## 1. Crear el servidor gratis (Oracle Cloud Always Free)
+## 1. Instalar en una PC con Windows (gratis, recomendado)
+
+Abrí **Windows PowerShell** (no hace falta como administrador) y pegá esta línea:
+
+```powershell
+irm https://raw.githubusercontent.com/emapalla/emapalla/claude/bitacora-perforacion/conector-whatsapp/windows/instalar.ps1 | iex
+```
+
+El instalador hace todo esto solo:
+
+- Instala Node.js y Tailscale con winget.
+- Descarga el conector en `%LOCALAPPDATA%\BitacoraConector` y genera la clave.
+- Lo deja arrancando solo al iniciar sesión, desde la carpeta *Inicio*.
+- Publica una dirección HTTPS fija con **Tailscale Funnel** (`https://<pc>.<tailnet>.ts.net`).
+- Deja las direcciones en el Escritorio.
+
+Si la PC se apaga de noche no se pierde nada: WhatsApp entrega los mensajes pendientes cuando la PC vuelve, hasta 14 días después. Para actualizar, volvé a pegar la misma línea.
+
+## 1b. Alternativa: servidor Linux (Oracle Cloud Always Free u otro)
 
 La guía paso a paso para personas sin experiencia técnica está en el documento *Bitácora de Perforación — Instalación y manual*. En resumen:
 
