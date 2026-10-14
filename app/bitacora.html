@@ -137,6 +137,11 @@ textarea{width:100%;resize:vertical;font-family:var(--f-mono);font-size:.85rem;l
 .ask textarea{font-family:var(--f-body);font-size:.95rem}
 .sugs{display:flex;flex-wrap:wrap;gap:6px}
 .sugs button{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:4px 12px;cursor:pointer;font-size:.85rem}
+/* Barra de WhatsApp */
+.wabar{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;padding:10px 14px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.wabar .dot{width:9px;height:9px;border-radius:50%;background:var(--info);flex:none}
+.wabar .dot.on{background:var(--ok)} .wabar .dot.err{background:var(--alta)} .wabar .dot.run{background:var(--accent)}
+.wabar .txt{min-width:0;flex:1 1 260px;font-size:.92rem}
 /* Pozos × etapas */
 .pad{display:flex;flex-direction:column;gap:8px}
 .pad-h{display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:4px}
@@ -185,6 +190,8 @@ td.c-curso{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
       <span class="spacer"></span>
       <label class="field" style="flex-direction:row;align-items:center;gap:8px"><span class="lbl">Día</span><input type="date" id="hoyFecha"></label>
     </div>
+    <div class="wabar" id="waBar"><span class="dot" id="waDot"></span><div class="txt"><b>WhatsApp</b> · <span id="waState">buscando el conector…</span></div>
+      <button class="btn small" id="waSync">Sincronizar ahora</button><button class="btn small" id="waPerm" hidden>Permitir acceso al conector</button></div>
     <div class="kpis" id="kpis"></div>
     <div id="rigs" class="rigs"></div>
   </section>
@@ -244,7 +251,7 @@ td.c-curso{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
   <section class="view" id="v-cargar" hidden>
     <div class="load-grid">
       <div class="panel" style="display:flex;flex-direction:column;gap:12px;min-width:0">
-        <div class="row"><h2>Pegar mensajes de WhatsApp</h2><span class="spacer"></span><button class="btn small" id="exBtn">Ver ejemplo</button></div>
+        <div class="row"><h2>Carga manual</h2><span class="spacer"></span><button class="btn small" id="exBtn">Ver ejemplo</button></div>
         <textarea id="raw" rows="14" placeholder="[14/10/26, 06:12] Jefe Eq. 4: Pozo 3 sección intermedia a 2.150 m, perforando con ROP 25 m/h…"></textarea>
         <div class="row">
           <label class="btn small" for="fileTxt">Subir chat exportado (.txt)</label>
@@ -262,7 +269,8 @@ td.c-curso{background:color-mix(in srgb,var(--accent) 9%,var(--surface))}
         </div>
       </div>
       <div class="panel" style="min-width:0">
-        <h3 style="margin-bottom:8px">Cómo traer los mensajes</h3>
+        <h3 style="margin-bottom:8px">Cómo llegan los mensajes</h3>
+        <p style="margin:0 0 10px;font-size:.92rem">Con el <b>conector de WhatsApp</b> los mensajes de los grupos de los rigs se guardan solos las 24 h y se interpretan cada vez que abrís la app. <a href="https://github.com/emapalla/emapalla/blob/claude/bitacora-perforacion/conector-whatsapp/README.md" target="_blank" rel="noopener">Guía para instalarlo</a>. Esta carga manual queda como respaldo:</p>
         <ol class="steps">
           <li><b>Varios mensajes:</b> en el grupo, mantené apretado un mensaje, marcá los demás, tocá <i>Copiar</i> y pegalos acá.</li>
           <li><b>El chat entero:</b> en el grupo, ⋮ → <i>Más</i> → <i>Exportar chat</i> → <i>Sin archivos</i>, y subí el .txt. Podés subir varios grupos juntos.</li>
@@ -617,13 +625,15 @@ function knownEquipos(){
   return Object.entries(S.equipos).map(([id,e])=>({id, nombre:e.nombre, alias:(e.alias||[]).slice(0,8), pad:e.pad||"", pozo_actual:e.pozo||"", etapa_actual:e.etapa||"",
     pozos: Object.values(S.pozos).filter(p=>p.equipo_id===id).sort((a,b)=>String(b.actualizado||"").localeCompare(String(a.actualizado||""))).slice(0,12).map(p=>p.pad?p.pozo+" ("+p.pad+")":p.pozo)}));
 }
-function buildPrompt(msgLines, defFecha, hasImages){
+function buildPrompt(msgLines, defFecha, imgNotes){
+  const hasImages = !!imgNotes;
   const oa = openAlerts().slice(0,60).map(a=>({id:a._id, equipo_id:a.equipo_id, titulo:a.titulo, fecha:a.fecha}));
   return `Sos el asistente de un supervisor de perforación en Argentina que maneja varios equipos (rigs) perforando en modalidad batch drilling: cada equipo trabaja en un PAD/locación con varios pozos, hace skid entre pozos y perfora la misma sección (guía, intermedia, producción/horizontal) en todos antes de pasar a la siguiente.
 
 Les decimos "rigs" a los equipos de perforación; "equipo" y "rig" son lo mismo.
 
-Te paso mensajes de grupos de WhatsApp de los rigs${hasImages?" y también imágenes (capturas de chats o partes diarios): leé su contenido igual que los mensajes":""}. Extraé las NOVEDADES operativas.
+Te paso mensajes de grupos de WhatsApp de los rigs${hasImages?" y también imágenes (capturas de chats o partes diarios): leé su contenido igual que los mensajes"+(imgNotes&&imgNotes.length?". Las fotos, en orden, corresponden a: "+imgNotes.join("; ")+" (usá msg con ese id)":""):""}. Extraé las NOVEDADES operativas.
+El nombre del grupo de WhatsApp («grupo …») suele identificar al rig o al PAD: usalo para asignar el rig cuando el mensaje no lo dice.
 
 Rigs ya conocidos, con sus pozos recientes (usá su id si el mensaje se refiere a uno de ellos, aunque lo escriban distinto: "Eq 4", "rig 4", "DLS-4", el nombre del jefe de equipo que siempre informa de ese rig, el PAD o el pozo). Escribí el nombre del pozo siempre igual que en esta lista si es el mismo pozo:
 ${JSON.stringify(knownEquipos())}
@@ -658,50 +668,25 @@ Mensajes ([id] fecha hora | autor: texto):
 ${msgLines.join("\n")}`;
 }
 
-async function processInput(){
-  if (!S.sample){ toast("Claude no está disponible en esta vista."); return; }
-  const defFecha = $("defFecha").value || today();
-  const sources = [];
-  if ($("raw").value.trim()) sources.push($("raw").value);
-  for (const f of fileTexts) sources.push(f.text);
-  if (!sources.length && !S.images.length){ toast("Pegá mensajes o subí un chat exportado."); return; }
-
-  // 1) parsear y descartar ya vistos
-  let all=[], anyParsed=false;
-  for (const s of sources){ const r=parseWhatsApp(s,defFecha); anyParsed = anyParsed||r.parsed; all.push(...r.msgs); }
-  for (const m of all) m.h = hash(m.fecha+"|"+m.hora+"|"+m.autor+"|"+m.texto);
-  const seen = new Set((S.vistos&&S.vistos.h)||[]);
-  const uniq=[], local=new Set();
-  let skipped=0;
-  for (const m of all){ if(seen.has(m.h)){skipped++;continue;} if(local.has(m.h))continue; local.add(m.h); uniq.push(m); }
-  uniq.sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora));
-  if (!uniq.length && !S.images.length){ toast(skipped? "Todos esos mensajes ya estaban cargados." : "No encontré mensajes con contenido."); return; }
+// Interpreta mensajes ya separados ({fecha,hora,autor,texto,grupo?,imgN?}) y devuelve el lote listo para guardar.
+async function interpretar(uniq, defFecha, images, signal, onStatus){
   uniq.forEach((m,i)=>m.id="m"+(i+1));
-
-  // 2) dividir en tandas
-  const lines = uniq.map(m=>`[${m.id}] ${m.fecha} ${m.hora} | ${m.autor}: ${m.texto.slice(0,3000)}`);
+  if (images) for (const x of images) if (x && x.msg) x.note = x.msg.id;
+  const lines = uniq.map(m=>`[${m.id}] ${m.fecha} ${m.hora} | ${m.grupo?"grupo «"+m.grupo+"» | ":""}${m.autor}: ${m.texto.slice(0,3000)}${m.imagen?" [foto adjunta]":""}`);
   const chunks=[]; let curC=[], size=0;
   for (const l of lines){ if(size+l.length>40000 && curC.length){chunks.push(curC);curC=[];size=0;} curC.push(l); size+=l.length+1; }
   if (curC.length || !chunks.length) chunks.push(curC);
-
-  procCtl = new AbortController();
-  $("procBtn").disabled=true; $("procStop").hidden=false;
   const result={novedades:[],estado_equipos:[],cierra_alertas:[]};
-  try{
-    for (let i=0;i<chunks.length;i++){
-      $("procStatus").textContent = `Claude está leyendo ${uniq.length} mensajes${S.images.length?" y "+S.images.length+" imágenes":""}`+(chunks.length>1?` (tanda ${i+1} de ${chunks.length})`:"")+"…";
-      const imgs = i===0 && S.images.length && S.imgOK ? S.images : undefined;
-      const r = await S.sample.json(buildPrompt(chunks[i].length?chunks[i]:["(sin mensajes de texto: solo imágenes)"], defFecha, !!imgs), {signal:procCtl.signal, images:imgs, cache:false});
-      if (r && Array.isArray(r.novedades)) result.novedades.push(...r.novedades);
-      if (r && Array.isArray(r.estado_equipos)) result.estado_equipos.push(...r.estado_equipos);
-      if (r && Array.isArray(r.cierra_alertas)) result.cierra_alertas.push(...r.cierra_alertas);
-    }
-  }catch(e){
-    $("procStatus").textContent = errCopy(e);
-    $("procBtn").disabled=false; $("procStop").hidden=true; return;
+  const imgs = images && images.length && S.imgOK ? images : null;
+  for (let i=0;i<chunks.length;i++){
+    onStatus && onStatus(`Claude está leyendo ${uniq.length} mensajes${imgs?" y "+imgs.length+" fotos":""}`+(chunks.length>1?` (tanda ${i+1} de ${chunks.length})`:"")+"…");
+    const withImg = i===0 && imgs;
+    const r = await S.sample.json(buildPrompt(chunks[i].length?chunks[i]:["(sin mensajes de texto: solo imágenes)"], defFecha, withImg ? imgs.map(x=>x.note||"").filter(Boolean) : null),
+      {signal, images: withImg ? imgs.map(x=>x.blob||x) : undefined, cache:false});
+    if (r && Array.isArray(r.novedades)) result.novedades.push(...r.novedades);
+    if (r && Array.isArray(r.estado_equipos)) result.estado_equipos.push(...r.estado_equipos);
+    if (r && Array.isArray(r.cierra_alertas)) result.cierra_alertas.push(...r.cierra_alertas);
   }
-  $("procBtn").disabled=false; $("procStop").hidden=true;
-  $("procStatus").textContent = skipped? `${skipped} mensajes ya cargados se saltearon.` : "";
   const byId = Object.fromEntries(uniq.map(m=>[m.id,m]));
   result.novedades = result.novedades.filter(n=>n && n.resumen).map((n,i)=>{
     const src = byId[n.msg];
@@ -712,8 +697,34 @@ async function processInput(){
       pozo: matchPozo(eq.id, n.pozo), etapa: normEtapa(n.etapa, n.seccion, n.categoria), hito: n.hito==="inicio"||n.hito==="fin"?n.hito:"",
       _on:true, _k:i };
   });
-  S.preview = { ...result, hashes:uniq.map(m=>m.h), nMsgs:uniq.length, raw:sources.join("\n\n").slice(0,180000), example:S.isExample };
-  renderPreview();
+  return { ...result, hashes:uniq.map(m=>m.h), nMsgs:uniq.length };
+}
+const msgHash = m => hash(m.fecha+"|"+m.hora+"|"+m.autor+"|"+m.texto);
+
+async function processInput(){
+  if (!S.sample){ toast("Claude no está disponible en esta vista."); return; }
+  const defFecha = $("defFecha").value || today();
+  const sources = [];
+  if ($("raw").value.trim()) sources.push($("raw").value);
+  for (const f of fileTexts) sources.push(f.text);
+  if (!sources.length && !S.images.length){ toast("Pegá mensajes o subí un chat exportado."); return; }
+  let all=[];
+  for (const s of sources) all.push(...parseWhatsApp(s,defFecha).msgs);
+  for (const m of all) m.h = msgHash(m);
+  const seen = new Set((S.vistos&&S.vistos.h)||[]);
+  const uniq=[], local=new Set(); let skipped=0;
+  for (const m of all){ if(seen.has(m.h)){skipped++;continue;} if(local.has(m.h))continue; local.add(m.h); uniq.push(m); }
+  uniq.sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora));
+  if (!uniq.length && !S.images.length){ toast(skipped? "Todos esos mensajes ya estaban cargados." : "No encontré mensajes con contenido."); return; }
+  procCtl = new AbortController();
+  $("procBtn").disabled=true; $("procStop").hidden=false;
+  try{
+    const r = await interpretar(uniq, defFecha, S.images, procCtl.signal, t=>$("procStatus").textContent=t);
+    $("procStatus").textContent = skipped? `${skipped} mensajes ya cargados se saltearon.` : "";
+    S.preview = { ...r, raw:sources.join("\n\n").slice(0,180000), example:S.isExample };
+    renderPreview();
+  }catch(e){ $("procStatus").textContent = errCopy(e); }
+  finally{ $("procBtn").disabled=false; $("procStop").hidden=true; }
 }
 function matchPozo(rig, pozo){
   if (!pozo) return "";
@@ -797,8 +808,18 @@ async function saveBatch(){
   const p=S.preview; if(!p||p.example||!S.db) return;
   const sel=p.novedades.filter(n=>n._on); if(!sel.length) return;
   const btn=$("pvSave"); btn.disabled=true; btn.textContent="Guardando…";
-  const now=new Date().toISOString();
   try{
+    await persist(p, sel);
+    toast(`Guardadas ${sel.length} novedades`);
+    S.preview=null; renderPreview(); $("raw").value=""; fileTexts.length=0; S.images=[]; renderChips();
+    $("hoyFecha").value=""; showTab("hoy"); renderHoy();
+  }catch(e){
+    toast(e&&e.code==="quota_exceeded"?"La base llegó a su límite de tamaño.":"No se pudo guardar todo. Revisá el historial y probá de nuevo.");
+  }finally{ btn.textContent="Guardar en la bitácora"; btn.disabled=false; }
+}
+async function persist(p, sel){
+  const now=new Date().toISOString();
+  {
     // novedades agrupadas por día y equipo
     const groups={}, added=[];
     for (const n of sel){
@@ -849,13 +870,8 @@ async function saveBatch(){
     const h=[...((S.vistos&&S.vistos.h)||[]), ...p.hashes].slice(-12000);
     await S.db.doc("meta/vistos").set({h, actualizado:now}); S.vistos={h};
     // lote original, para auditoría
-    await S.db.collection("lotes").add({cargado:now, mensajes:p.nMsgs, novedades:sel.length, texto:p.raw});
-    toast(`Guardadas ${sel.length} novedades`);
-    S.preview=null; renderPreview(); $("raw").value=""; fileTexts.length=0; S.images=[]; renderChips();
-    $("hoyFecha").value=""; showTab("hoy"); renderHoy();
-  }catch(e){
-    toast(e&&e.code==="quota_exceeded"?"La base llegó a su límite de tamaño.":"No se pudo guardar todo. Revisá el historial y probá de nuevo.");
-  }finally{ btn.textContent="Guardar en la bitácora"; btn.disabled=false; }
+    await S.db.collection("lotes").add({cargado:now, origen:p.origen||"manual", mensajes:p.nMsgs, novedades:sel.length, texto:String(p.raw||"").slice(0,180000)});
+  }
 }
 
 // ---------- Textos compactos para Claude ----------
@@ -1017,6 +1033,83 @@ async function runChat(isBrief){
   finally{ $("askBtn").disabled=false; $("briefBtn").disabled=false; $("askStop").hidden=true; }
 }
 
+// ---------- Sincronización automática con el conector de WhatsApp ----------
+const WA = "Bitacora WhatsApp";
+const GUIA = "https://github.com/emapalla/emapalla/blob/claude/bitacora-perforacion/conector-whatsapp/README.md";
+let waBusy=false;
+function waShow(state, html){ $("waDot").className="dot "+(state||""); $("waState").innerHTML=html; }
+function waIdle(){
+  const w=S.wa||{};
+  if (!w.sincronizado){ waShow("", "listo para la primera sincronización."); return; }
+  const t=new Date(w.sincronizado);
+  waShow("on", `última sincronización ${t.toLocaleDateString("es-AR",{day:"2-digit",month:"2-digit"})} ${t.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})} · ${w.ult_mensajes||0} mensajes nuevos, ${w.ult_novedades||0} novedades`);
+}
+function waError(e){
+  const c=e&&e.code;
+  if (c==="server_not_connected"||c==="server_not_found") waShow("err", `el conector «${WA}» no está agregado en tu cuenta de Claude. <a href="${GUIA}" target="_blank" rel="noopener">Ver cómo instalarlo</a>.`);
+  else if (c==="needs_reauth") waShow("err", "hay que volver a conectar el conector en Configuración → Conectores de claude.ai.");
+  else if (c==="not_granted"||c==="consent_required"||c==="approval_required"){ waShow("err","falta permitir que la app use el conector."); $("waPerm").hidden=false; }
+  else if (c==="server_unavailable") waShow("err","el servidor del conector no responde. Revisá que esté prendido en Railway.");
+  else if (c==="tool_error") waShow("err","el conector respondió con un error: "+esc(e.message||""));
+  else if (c==="blocked_by_policy") waShow("err","tu organización no permite este conector.");
+  else waShow("err","no se pudo sincronizar ("+esc(c||"error")+"). Probá de nuevo.");
+}
+async function imagenDe(n){
+  try{
+    const r=await S.mcp.callTool(WA,"obtener_imagen",{n});
+    const b=(r.content||[]).find(x=>x.type==="image"); if(!b) return null;
+    const bin=atob(b.data); const u8=new Uint8Array(bin.length); for(let i=0;i<bin.length;i++) u8[i]=bin.charCodeAt(i);
+    return new Blob([u8],{type:b.mimeType||"image/jpeg"});
+  }catch(_){ return null; }
+}
+async function syncWhatsApp(manual){
+  if (waBusy || !S.mcp || !S.db) return;
+  if (!S.sample){ waShow("err","Claude no está disponible en esta vista para interpretar los mensajes."); return; }
+  if (!S.canWrite){ waShow("", "tenés acceso de lectura: la sincronización la hace el dueño de la bitácora."); return; }
+  waBusy=true; $("waSync").disabled=true; $("waPerm").hidden=true;
+  const holder="v"+Math.random().toString(36).slice(2);
+  try{
+    const lock=await S.db.doc("meta/whatsapp_lock").acquire({holder, ttlMs:300000});
+    if (!lock.acquired){ waShow("run","otra ventana está sincronizando en este momento."); return; }
+    let cursor = Number((S.wa&&S.wa.ultimo_n)||0), totM=0, totN=0;
+    for (let page=0; page<6; page++){
+      waShow("run", page? `leyendo más mensajes (${totM} hasta ahora)…` : "buscando mensajes nuevos…");
+      const r = await S.mcp.callTool(WA,"leer_mensajes",{desde:cursor, limite:1200});
+      const pl = r.payload||{}; const msgs = Array.isArray(pl.mensajes)?pl.mensajes:[];
+      if (!msgs.length){ if(page===0 && pl.conectado===false){ waShow("err","el conector está prendido pero el WhatsApp no está vinculado. Abrí la página de administración del conector y escaneá el QR."); return; } break; }
+      const seen=new Set((S.vistos&&S.vistos.h)||[]);
+      const uniq=msgs.map(m=>({fecha:m.fecha, hora:m.hora, autor:m.autor||"", texto:String(m.texto||""), grupo:m.grupo||"", imagen:!!m.imagen, n:m.n}))
+        .filter(m=>(m.texto.trim()||m.imagen) && !JUNK.test(m.texto.trim()||"x")).map(m=>({...m,h:msgHash(m)})).filter(m=>!seen.has(m.h));
+      const last = Number(pl.ultimo)||msgs[msgs.length-1].n;
+      if (uniq.length){
+        let imgs=[];
+        if (S.imgOK){
+          const conFoto=uniq.filter(m=>m.imagen).slice(-S.imgMax);
+          for (const m of conFoto){ const b=await imagenDe(m.n); if(b) imgs.push({blob:b, msg:m}); }
+        }
+        const p = await interpretar(uniq, today(), imgs.length?imgs:null, undefined, t=>waShow("run",esc(t)));
+        const sel=p.novedades;
+        if (sel.length) await persist({...p, origen:"whatsapp", raw:uniq.map(m=>`${m.fecha} ${m.hora} [${m.grupo}] ${m.autor}: ${m.texto}`).join("\n")}, sel);
+        else { const h=[...((S.vistos&&S.vistos.h)||[]), ...p.hashes].slice(-12000); await S.db.doc("meta/vistos").set({h, actualizado:new Date().toISOString()}); S.vistos={h}; }
+        totM+=uniq.length; totN+=sel.length;
+      }
+      cursor=last;
+      const w={ultimo_n:cursor, sincronizado:new Date().toISOString(), ult_mensajes:totM, ult_novedades:totN};
+      await S.db.doc("meta/whatsapp").set(w); S.wa=w;
+      if (!pl.hay_mas) break;
+    }
+    waIdle();
+    if (totN) toast(`WhatsApp: ${totN} novedades nuevas de ${totM} mensajes`);
+    else if (manual) toast("No hay mensajes nuevos en WhatsApp.");
+  }catch(e){ waError(e); }
+  finally{ waBusy=false; $("waSync").disabled=false; }
+}
+$("waSync").addEventListener("click",()=>syncWhatsApp(true));
+$("waPerm").addEventListener("click", async ()=>{
+  try{ const pm=await claude.use("permissions"); if(pm){ const r=await pm.request(["mcp:"+WA]); if(r["mcp:"+WA]==="denied"){ try{ await pm.manage(); }catch(_){ toast("Activá el conector desde el menú Permisos del artifact."); } } } }catch(_){}
+  syncWhatsApp(true);
+});
+
 // ---------- Arranque ----------
 $("defFecha").value=today();
 $("hdrSub").textContent = "Batch drilling · " + fechaLarga(today());
@@ -1025,10 +1118,10 @@ renderAll();
 
 (async()=>{
   if (!window.claude || !claude.use){ dbOff("Abrí esta página desde claude.ai para usar la base de datos y Claude."); return; }
-  const [db, sample, user, downloads] = await Promise.all([claude.use("db"), claude.use("sample"), claude.use("user"), claude.use("downloads")]);
-  S.db=db; S.sample=sample; S.user=user; S.downloads=downloads;
+  const [db, sample, user, downloads, mcp] = await Promise.all([claude.use("db"), claude.use("sample"), claude.use("user"), claude.use("downloads"), claude.use("mcp")]);
+  S.db=db; S.sample=sample; S.user=user; S.downloads=downloads; S.mcp=mcp;
   if (user){ try{ const c=await user.can("data.write"); if(c===false) S.canWrite=false; }catch(_){} }
-  if (sample){ try{ const lim=await sample.limits(); S.imgOK=!!lim.images; S.toolsOK=!!lim.tools; }catch(_){} }
+  if (sample){ try{ const lim=await sample.limits(); S.imgOK=!!lim.images; S.imgMax=lim.images?Math.min(lim.images.maxCount,6):0; S.toolsOK=!!lim.tools; }catch(_){} }
   $("imgLbl").hidden=!S.imgOK;
   if (!sample){ $("procBtn").disabled=true; $("briefBtn").disabled=true; $("askBtn").disabled=true; }
   if (!S.canWrite){ $("procBtn").disabled=true; $("procStatus").textContent="Tenés acceso de lectura: no podés cargar novedades."; }
@@ -1039,6 +1132,13 @@ renderAll();
   db.collection("alertas").orderBy("creada","desc").limit(800).onSnapshot(s=>{ S.alertas=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, onErr);
   db.collection("pozos").limit(1000).onSnapshot(s=>{ S.pozos=Object.fromEntries(s.docs.map(d=>[d.id,d.data()])); renderAll(); }, onErr);
   db.doc("meta/vistos").onSnapshot(s=>{ S.vistos=s.exists?s.data():{h:[]}; }, onErr);
+  if (!mcp) waShow("err","esta vista no puede usar conectores. Abrí la app desde claude.ai con tu cuenta.");
+  else {
+    // sincroniza sola al abrir, después de leer dónde quedó la última vez
+    Promise.all([db.doc("meta/whatsapp").get(), db.doc("meta/vistos").get()]).then(([w,v])=>{
+      S.wa=w.exists?w.data():{}; S.vistos=v.exists?v.data():{h:[]}; waIdle(); syncWhatsApp(false);
+    }).catch(()=>waShow("err","no se pudo leer el estado de la sincronización."));
+  }
   db.doc("resumenes/"+today()).get().then(s=>{ if(s.exists&&!turns.length){ const b=s.data(); turns=[{role:"user",content:"Resumen de la mañana de hoy.",show:b.pedido||"Resumen de la mañana"},{role:"assistant",content:b.texto}]; renderChat();
     $("briefMeta").textContent="Resumen de hoy generado a las "+new Date(b.generado).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); } }).catch(()=>{});
 })();

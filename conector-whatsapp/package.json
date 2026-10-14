@@ -1,0 +1,19 @@
+{
+  "name": "conector-whatsapp-bitacora",
+  "version": "1.0.0",
+  "description": "Vincula un WhatsApp como dispositivo, guarda los mensajes de los grupos de los rigs y los expone como conector MCP para Claude.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "baileys": "7.0.0-rc14",
+    "express": "5.3.0",
+    "pino": "10.4.0",
+    "qrcode": "1.5.4",
+    "zod": "4.6.7"
+  }
+}
