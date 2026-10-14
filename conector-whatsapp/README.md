@@ -8,22 +8,27 @@ Este programa queda prendido las 24 h en un servidor y hace tres cosas:
 
 > **Riesgo:** WhatsApp no autoriza oficialmente vincular programas de esta forma y puede suspender el número. Conviene usar un **número o chip dedicado** (por ejemplo un celular de la empresa), sumarlo a los grupos de los rigs y vincular ese número, no tu WhatsApp personal. El celular de ese número tiene que conectarse a internet al menos una vez cada 14 días para que la vinculación no se caiga.
 
-## 1. Crear el servidor (Railway, unos 5 USD por mes)
+## 1. Crear el servidor gratis (Oracle Cloud Always Free)
 
-1. Entrá a <https://railway.com> e iniciá sesión con tu cuenta de GitHub (`emapalla`).
-2. **New Project → Deploy from GitHub repo →** elegí `emapalla/emapalla`.
-3. En el servicio que se crea, abrí **Settings**:
-   - **Source → Root Directory:** `conector-whatsapp`
-   - **Source → Branch:** `claude/bitacora-perforacion`, o `main` si después se une a esa rama.
-   - **Networking → Generate Domain:** crea una dirección del tipo `https://algo.up.railway.app`.
-4. En **Variables** agregá:
-   - `TOKEN` = una clave larga y secreta, de 16 caracteres o más, por ejemplo `perforacion-` seguido de 20 letras y números al azar. No la compartas.
-5. Agregá un **volumen**: clic derecho en el servicio → **Attach Volume**, con Mount path `/data`. Ahí quedan la vinculación y los mensajes. Sin volumen se pierden en cada reinicio.
-6. Esperá a que el despliegue quede en verde.
+La guía paso a paso para personas sin experiencia técnica está en el documento *Bitácora de Perforación — Instalación y manual*. En resumen:
+
+1. Creá una instancia Ubuntu 24.04 marcada **Always Free-eligible** (VM.Standard.A1.Flex con 1 OCPU y 6 GB, o VM.Standard.E2.1.Micro), con IP pública.
+2. En **Advanced options → Management → cloud-init**, pegá este texto con tu clave:
+
+   ```bash
+   #!/bin/bash
+   export CLAVE="TU-CLAVE-DE-16-O-MAS-CARACTERES"
+   curl -fsSL https://raw.githubusercontent.com/emapalla/emapalla/claude/bitacora-perforacion/conector-whatsapp/instalar.sh | bash
+   ```
+
+3. En la **Security List** de la subred, abrí TCP 80 y 443 desde `0.0.0.0/0`.
+4. A los 10 o 15 minutos el conector queda en `https://<ip-con-guiones>.sslip.io`, con HTTPS automático (Caddy) y una actualización diaria desde GitHub.
+
+`instalar.sh` funciona en cualquier servidor Ubuntu o Debian con IP pública. Para otro proveedor, ejecutalo como root: `CLAVE=... bash instalar.sh`. Hay una alternativa paga con Docker: el `Dockerfile` y `railway.json` sirven para Railway o un servicio parecido, con un volumen en `/data` y la variable `TOKEN`.
 
 ## 2. Vincular el WhatsApp
 
-1. Abrí en el navegador `https://TU-DOMINIO.up.railway.app/admin?token=TU_TOKEN`.
+1. Abrí en el navegador `https://TU-DOMINIO/admin?token=TU_CLAVE`.
 2. En el celular del número dedicado: WhatsApp → ⋮ → **Dispositivos vinculados → Vincular un dispositivo**, y escaneá el QR que aparece en la página.
 3. Cuando diga *Vinculado*, marcá los **grupos de los rigs** y tocá **Guardar selección**. Desde ese momento se guarda cada mensaje nuevo de esos grupos.
 
@@ -31,7 +36,7 @@ Este programa queda prendido las 24 h en un servidor y hace tres cosas:
 
 1. En <https://claude.ai> → **Configuración → Conectores → Agregar conector personalizado**.
 2. Nombre: **`Bitacora WhatsApp`**. Tiene que ser exactamente así, sin tilde, porque la app lo busca con ese nombre.
-3. URL: `https://TU-DOMINIO.up.railway.app/mcp/TU_TOKEN`. La página de administración te la muestra lista para copiar.
+3. URL: `https://TU-DOMINIO/mcp/TU_CLAVE`. La página de administración te la muestra lista para copiar.
 4. Abrí la app Bitácora de Perforación. La primera vez te pide permiso para usar el conector; después sincroniza sola al abrirla.
 
 ## Qué puede hacer Claude con el conector
