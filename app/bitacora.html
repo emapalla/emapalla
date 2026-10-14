@@ -1,0 +1,889 @@
+<title>Bitácora de Perforación</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: consola de supervisor — barra fija con pestañas, tablero por equipo en grilla, listas tipo parte diario (hora · severidad · hecho). */
+:root{
+  --bg:#EDEFF1; --surface:#FFFFFF; --sunk:#E3E7EB; --ink:#172029; --muted:#5B6672; --line:#D3D9DF;
+  --accent:#0F6177; --accent-ink:#FFFFFF;
+  --crit:#C62828; --alta:#C9590A; --media:#A57A00; --baja:#3F67A0; --info:#76808A; --ok:#2E7D4F;
+  --f-display:"IBM Plex Sans Condensed","Arial Narrow",system-ui,sans-serif;
+  --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+  --r:6px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#11161B; --surface:#1A2128; --sunk:#151B21; --ink:#E4E8EC; --muted:#94A0AC; --line:#2C353E;
+  --accent:#5FB3C9; --accent-ink:#0B1A20;
+  --crit:#FF6B6B; --alta:#FF9A4D; --media:#E5B93C; --baja:#8FB0E0; --info:#8C97A2; --ok:#62C48C; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#11161B; --surface:#1A2128; --sunk:#151B21; --ink:#E4E8EC; --muted:#94A0AC; --line:#2C353E;
+  --accent:#5FB3C9; --accent-ink:#0B1A20;
+  --crit:#FF6B6B; --alta:#FF9A4D; --media:#E5B93C; --baja:#8FB0E0; --info:#8C97A2; --ok:#62C48C; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);border-bottom:1px solid var(--line)}
+.top .wrap{display:flex;flex-wrap:wrap;align-items:flex-end;gap:8px 24px;padding-block:14px 0}
+.brand{display:flex;flex-direction:column;gap:2px;padding-bottom:10px;min-width:0}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:1.35rem;letter-spacing:.01em;margin:0;line-height:1.1}
+.brand .sub{font-family:var(--f-mono);font-size:.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+nav.tabs{display:flex;gap:2px;overflow-x:auto;margin-left:auto;max-width:100%;scrollbar-width:none}
+nav.tabs button{background:none;border:0;border-bottom:3px solid transparent;padding:8px 12px 10px;font-family:var(--f-display);font-weight:600;font-size:.95rem;color:var(--muted);cursor:pointer;white-space:nowrap;letter-spacing:.02em}
+nav.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+nav.tabs .badge{display:inline-block;min-width:1.4em;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--crit);color:#fff;font-family:var(--f-mono);font-size:.7rem;line-height:1.4em;text-align:center}
+main{padding-block:20px 60px}
+section.view{display:flex;flex-direction:column;gap:18px}
+h2{font-family:var(--f-display);font-weight:600;font-size:1.25rem;margin:0;text-wrap:balance}
+h3{font-family:var(--f-display);font-weight:600;font-size:1.05rem;margin:0}
+.lbl{font-family:var(--f-mono);font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.muted{color:var(--muted)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.spacer{flex:1}
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:var(--surface);border-radius:var(--r);padding:8px 14px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.small{padding:4px 10px;font-size:.85rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.danger{color:var(--crit)}
+.field{display:flex;flex-direction:column;gap:4px;min-width:0}
+input[type=text],input[type=date],input[type=search],select,textarea{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;min-width:0;max-width:100%}
+textarea{width:100%;resize:vertical;font-family:var(--f-mono);font-size:.85rem;line-height:1.45}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.note{border:1px dashed var(--line);border-radius:var(--r);padding:12px 14px;color:var(--muted);font-size:.9rem}
+.note.warn{border-style:solid;border-color:color-mix(in srgb,var(--alta) 50%,var(--line));color:var(--ink);background:color-mix(in srgb,var(--alta) 8%,var(--surface))}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:var(--r);font-weight:500;z-index:20;max-width:calc(100% - 32px)}
+
+/* Resumen superior */
+.kpis{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.kpi{flex:1 1 140px;padding:12px 16px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:2px}
+.kpi:last-child{border-right:0}
+.kpi .v{font-family:var(--f-display);font-weight:700;font-size:1.7rem;line-height:1.1;font-variant-numeric:tabular-nums}
+.kpi .v.crit{color:var(--crit)}
+
+/* Tarjetas de equipo */
+.rigs{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+@media (max-width:420px){.rigs{grid-template-columns:1fr}}
+.rig{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);display:flex;flex-direction:column;min-width:0}
+.rig.hot{border-color:color-mix(in srgb,var(--crit) 55%,var(--line))}
+.rig-h{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:flex-start}
+.rig-h .name{font-family:var(--f-display);font-weight:700;font-size:1.15rem;line-height:1.15}
+.rig-state{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;background:var(--line);border-bottom:1px solid var(--line)}
+.rig-state>div{background:var(--sunk);padding:7px 12px;min-width:0}
+.rig-state .v{font-family:var(--f-mono);font-size:.85rem;overflow-wrap:anywhere}
+.rig-act{padding:8px 14px;font-size:.9rem;border-bottom:1px solid var(--line)}
+.items{list-style:none;margin:0;padding:4px 0}
+.item{display:grid;grid-template-columns:3.2em auto 1fr;gap:4px 10px;padding:7px 14px;align-items:baseline}
+.item+.item{border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent)}
+.item .t{font-family:var(--f-mono);font-size:.8rem;color:var(--muted)}
+.item .body{min-width:0}
+.item .res{overflow-wrap:anywhere}
+.item .det{color:var(--muted);font-size:.86rem;overflow-wrap:anywhere}
+.item .meta{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:2px}
+.rig-f{padding:8px 14px;border-top:1px solid var(--line);margin-top:auto}
+
+.pill{display:inline-block;font-family:var(--f-mono);font-size:.68rem;font-weight:500;text-transform:uppercase;letter-spacing:.05em;padding:1px 6px;border-radius:3px;white-space:nowrap;border:1px solid currentColor}
+.s-critica{color:var(--crit)} .s-alta{color:var(--alta)} .s-media{color:var(--media)} .s-baja{color:var(--baja)} .s-info{color:var(--info)}
+.pill.s-critica{background:var(--crit);color:#fff;border-color:var(--crit)}
+.cat{font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+
+/* Alertas */
+.alist{display:flex;flex-direction:column;gap:8px}
+.alert{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;display:grid;grid-template-columns:auto 1fr auto;gap:6px 12px;align-items:start}
+.alert .body{min-width:0}
+.alert .ttl{font-weight:600;overflow-wrap:anywhere}
+.alert.closed{opacity:.7}
+@media (max-width:520px){.alert{grid-template-columns:auto 1fr}.alert .act{grid-column:1/-1}}
+
+/* Historial */
+.filters{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.day{display:flex;flex-direction:column;gap:6px}
+.day-h{display:flex;gap:10px;align-items:baseline;border-bottom:2px solid var(--ink);padding-bottom:4px}
+.day-h h3{font-size:1.1rem}
+.hist .item{grid-template-columns:3.2em 7.5em auto 1fr auto;background:var(--surface);border:1px solid var(--line);border-radius:var(--r)}
+.hist .item+.item{border-top:1px solid var(--line)}
+.hist .rigname{font-family:var(--f-display);font-weight:600;overflow-wrap:anywhere}
+@media (max-width:640px){.hist .item{grid-template-columns:3.2em 1fr auto}.hist .rigname{grid-column:2/-1}.hist .item .body{grid-column:1/-1}.hist .item .del{grid-column:3;grid-row:1}}
+.del{background:none;border:0;color:var(--muted);cursor:pointer;font-size:.8rem;padding:2px 6px;border-radius:4px}
+.del.armed{color:#fff;background:var(--crit)}
+
+/* Cargar */
+.load-grid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:16px}
+@media (max-width:860px){.load-grid{grid-template-columns:1fr}}
+.steps{margin:0;padding-left:1.2em;display:flex;flex-direction:column;gap:6px;font-size:.92rem}
+.preview .item{grid-template-columns:auto 3.2em 1fr;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+.preview .item+.item{margin-top:6px}
+.preview .item.off{opacity:.45}
+.preview select{padding:2px 6px;font-size:.8rem}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-family:var(--f-mono);font-size:.75rem;border:1px solid var(--line);border-radius:12px;padding:2px 9px;background:var(--surface)}
+
+/* Resumen / chat */
+.brief{font-size:1rem;line-height:1.6;max-width:72ch}
+.brief h4{font-family:var(--f-display);font-size:1.05rem;margin:14px 0 4px}
+.brief ul{margin:4px 0;padding-left:1.2em}
+.brief p{margin:6px 0}
+.chat{display:flex;flex-direction:column;gap:10px}
+.msg{max-width:min(78ch,100%);padding:10px 14px;border-radius:var(--r);overflow-wrap:anywhere}
+.msg.me{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.ai{align-self:flex-start;background:var(--surface);border:1px solid var(--line)}
+.msg.ai .brief{font-size:.95rem}
+.ask{display:flex;gap:8px;align-items:flex-end}
+.ask textarea{font-family:var(--f-body);font-size:.95rem}
+.sugs{display:flex;flex-wrap:wrap;gap:6px}
+.sugs button{border:1px solid var(--line);background:var(--surface);border-radius:14px;padding:4px 12px;cursor:pointer;font-size:.85rem}
+.empty{padding:28px 20px;text-align:left;display:flex;flex-direction:column;gap:10px;align-items:flex-start}
+.empty h3{font-size:1.2rem}
+@media (prefers-reduced-motion:no-preference){.fade{animation:fade .25s ease-out}@keyframes fade{from{opacity:.4}to{opacity:1}}}
+</style>
+
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <h1>Bitácora de Perforación</h1>
+      <span class="sub" id="hdrSub">Batch drilling · novedades de equipos</span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Secciones">
+      <button role="tab" data-tab="hoy" aria-selected="true">Tablero</button>
+      <button role="tab" data-tab="resumen" aria-selected="false">Resumen</button>
+      <button role="tab" data-tab="alertas" aria-selected="false">Alertas<span class="badge" id="alertBadge" hidden>0</span></button>
+      <button role="tab" data-tab="cargar" aria-selected="false">Cargar</button>
+      <button role="tab" data-tab="historial" aria-selected="false">Historial</button>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <div id="dbNote" class="note warn" hidden></div>
+
+  <!-- TABLERO -->
+  <section class="view" id="v-hoy">
+    <div class="row">
+      <h2 id="hoyTitle">Estado de equipos</h2>
+      <span class="spacer"></span>
+      <label class="field" style="flex-direction:row;align-items:center;gap:8px"><span class="lbl">Día</span><input type="date" id="hoyFecha"></label>
+    </div>
+    <div class="kpis" id="kpis"></div>
+    <div id="rigs" class="rigs"></div>
+  </section>
+
+  <!-- RESUMEN -->
+  <section class="view" id="v-resumen" hidden>
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+      <div class="row">
+        <h2>Resumen de la mañana</h2>
+        <span class="spacer"></span>
+        <select id="briefRange" aria-label="Período">
+          <option value="24">Últimas 24 h</option>
+          <option value="36" selected>Desde ayer temprano (36 h)</option>
+          <option value="72">Últimos 3 días</option>
+        </select>
+        <button class="btn primary" id="briefBtn">Generar resumen</button>
+        <button class="btn" id="briefSpeak" hidden>▶ Escuchar</button>
+        <button class="btn" id="briefStop" hidden>■ Parar</button>
+      </div>
+      <div id="briefMeta" class="lbl"></div>
+      <div id="briefOut" class="brief"><p class="muted">Claude lee todas las novedades del período y las alertas abiertas, y te arma un parte por equipo: lo crítico primero, después avance, pozo, sección y pendientes. Lo podés escuchar en voz alta.</p></div>
+    </div>
+
+    <div class="panel" style="display:flex;flex-direction:column;gap:12px">
+      <div class="row"><h2>Preguntale a la bitácora</h2><span class="spacer"></span><button class="btn small" id="chatClear">Nueva conversación</button></div>
+      <div class="sugs" id="sugs">
+        <button>¿Qué equipos tienen alertas abiertas?</button>
+        <button>¿Cuánto NPT acumuló cada equipo esta semana?</button>
+        <button>¿En qué pozo y sección está cada equipo?</button>
+        <button>¿Hubo pérdidas de circulación en los últimos 7 días?</button>
+      </div>
+      <div class="chat" id="chat"></div>
+      <div class="ask">
+        <textarea id="askBox" rows="2" placeholder="Escribí o dictá con el micrófono del teclado: «¿Cómo viene el equipo 4 con la intermedia?»"></textarea>
+        <button class="btn primary" id="askBtn">Preguntar</button>
+      </div>
+      <div class="lbl">Para hablarle: usá el micrófono del teclado de tu celular para dictar, y «▶» en cada respuesta para escucharla.</div>
+    </div>
+  </section>
+
+  <!-- ALERTAS -->
+  <section class="view" id="v-alertas" hidden>
+    <div class="row"><h2>Alertas abiertas</h2><span class="spacer"></span>
+      <select id="alertEq" aria-label="Filtrar por equipo"><option value="">Todos los equipos</option></select></div>
+    <div class="alist" id="alertsOpen"></div>
+    <details id="closedWrap"><summary class="lbl" style="cursor:pointer;padding:6px 0">Resueltas recientemente</summary><div class="alist" id="alertsClosed" style="margin-top:8px"></div></details>
+  </section>
+
+  <!-- CARGAR -->
+  <section class="view" id="v-cargar" hidden>
+    <div class="load-grid">
+      <div class="panel" style="display:flex;flex-direction:column;gap:12px;min-width:0">
+        <div class="row"><h2>Pegar mensajes de WhatsApp</h2><span class="spacer"></span><button class="btn small" id="exBtn">Ver ejemplo</button></div>
+        <textarea id="raw" rows="14" placeholder="[14/10/26, 06:12] Jefe Eq. 4: Pozo 3 sección intermedia a 2.150 m, perforando con ROP 25 m/h…"></textarea>
+        <div class="row">
+          <label class="btn small" for="fileTxt">Subir chat exportado (.txt)</label>
+          <input type="file" id="fileTxt" accept=".txt,text/plain" multiple hidden>
+          <label class="btn small" for="fileImg" id="imgLbl" hidden>Agregar capturas o partes (fotos)</label>
+          <input type="file" id="fileImg" accept="image/*" multiple hidden>
+          <span class="spacer"></span>
+          <label class="field" style="flex-direction:row;align-items:center;gap:6px"><span class="lbl">Fecha si falta</span><input type="date" id="defFecha"></label>
+        </div>
+        <div class="chips" id="fileChips"></div>
+        <div class="row">
+          <button class="btn primary" id="procBtn">Interpretar con Claude</button>
+          <button class="btn" id="procStop" hidden>Detener</button>
+          <span id="procStatus" class="muted" style="min-width:0"></span>
+        </div>
+      </div>
+      <div class="panel" style="min-width:0">
+        <h3 style="margin-bottom:8px">Cómo traer los mensajes</h3>
+        <ol class="steps">
+          <li><b>Varios mensajes:</b> en el grupo, mantené apretado un mensaje, marcá los demás, tocá <i>Copiar</i> y pegalos acá.</li>
+          <li><b>El chat entero:</b> en el grupo, ⋮ → <i>Más</i> → <i>Exportar chat</i> → <i>Sin archivos</i>, y subí el .txt. Podés subir varios grupos juntos.</li>
+          <li><b>Partes en foto o PDF capturado:</b> agregá las imágenes; Claude las lee también.</li>
+          <li>Si exportás el mismo chat otra vez, los mensajes ya cargados se saltean solos.</li>
+          <li>Revisás lo que Claude interpretó, corregís equipo o severidad si hace falta, y guardás.</li>
+        </ol>
+      </div>
+    </div>
+    <div id="previewWrap" class="view" hidden>
+      <div class="row"><h2 id="pvTitle">Novedades interpretadas</h2><span class="spacer"></span>
+        <button class="btn" id="pvDiscard">Descartar</button>
+        <button class="btn primary" id="pvSave">Guardar en la bitácora</button></div>
+      <div id="pvNote"></div>
+      <div id="pvClose"></div>
+      <ul class="items preview" id="pvList"></ul>
+    </div>
+  </section>
+
+  <!-- HISTORIAL -->
+  <section class="view" id="v-historial" hidden>
+    <div class="row"><h2>Historial de novedades</h2><span class="spacer"></span><span id="histCount" class="lbl"></span><button class="btn small" id="csvBtn" hidden>Descargar CSV</button></div>
+    <div class="filters panel">
+      <label class="field"><span class="lbl">Equipo</span><select id="fEq"><option value="">Todos</option></select></label>
+      <label class="field"><span class="lbl">Categoría</span><select id="fCat"><option value="">Todas</option></select></label>
+      <label class="field"><span class="lbl">Severidad mínima</span><select id="fSev"><option value="">Todas</option><option value="baja">Baja o más</option><option value="media">Media o más</option><option value="alta">Alta o más</option><option value="critica">Crítica</option></select></label>
+      <label class="field"><span class="lbl">Desde</span><input type="date" id="fDesde"></label>
+      <label class="field"><span class="lbl">Hasta</span><input type="date" id="fHasta"></label>
+      <label class="field"><span class="lbl">Buscar</span><input type="search" id="fTxt" placeholder="pérdida, BOP, casing…"></label>
+    </div>
+    <div id="hist" class="hist" style="display:flex;flex-direction:column;gap:18px"></div>
+  </section>
+</main>
+<div id="toast" class="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+// ---------- Constantes del dominio ----------
+const CATS = {
+  perforacion:"Perforación / avance", dtm:"DTM / skid entre pozos", casing:"Entubación y cementación",
+  fluidos:"Lodo y fluidos", control_pozo:"Control de pozo / pérdidas", direccional:"Direccional / BHA",
+  equipo:"Falla o mantenimiento de equipo", hse:"Seguridad y ambiente", logistica:"Logística y materiales",
+  npt:"Tiempo no productivo", personal:"Personal y turnos", clima:"Clima / acceso", otros:"Otros"
+};
+const SEVS = ["info","baja","media","alta","critica"];
+const SEV_LBL = {info:"Info",baja:"Baja",media:"Media",alta:"Alta",critica:"Crítica"};
+const sevRank = s => Math.max(0, SEVS.indexOf(s));
+
+// ---------- Estado ----------
+const S = { db:null, sample:null, user:null, canWrite:true, imgOK:false, toolsOK:false,
+  dias:[], equipos:{}, alertas:[], vistos:null, preview:null, images:[], isExample:false };
+
+// ---------- Utilidades ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const pad2 = n => String(n).padStart(2,"0");
+const isoLocal = d => d.getFullYear()+"-"+pad2(d.getMonth()+1)+"-"+pad2(d.getDate());
+const today = () => isoLocal(new Date());
+const slug = s => String(s||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/^-+|-+$/g,"").slice(0,60) || "sin-equipo";
+function hash(str){ let h=0x811c9dc5; for(let i=0;i<str.length;i++){h^=str.charCodeAt(i); h=Math.imul(h,0x01000193);} return (h>>>0).toString(36); }
+const DIAS = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+const MESES = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+function fechaLarga(iso){ const [y,m,d]=iso.split("-").map(Number); const dt=new Date(y,m-1,d); return DIAS[dt.getDay()]+" "+d+" "+MESES[m-1]+" "+y; }
+function toast(msg){ const t=$("toast"); t.textContent=msg; t.hidden=false; clearTimeout(toast._t); toast._t=setTimeout(()=>t.hidden=true,3200); }
+function sevPill(s){ s=SEVS.includes(s)?s:"info"; return `<span class="pill s-${s}">${SEV_LBL[s]}</span>`; }
+function mdLite(text){
+  const lines = esc(text).split(/\n/); let out="", inUl=false;
+  const inl = s => s.replace(/\*\*(.+?)\*\*/g,"<b>$1</b>");
+  for (let l of lines){
+    if (/^\s*[-•*]\s+/.test(l)){ if(!inUl){out+="<ul>";inUl=true;} out+="<li>"+inl(l.replace(/^\s*[-•*]\s+/,""))+"</li>"; continue; }
+    if (inUl){ out+="</ul>"; inUl=false; }
+    if (/^#{1,4}\s+/.test(l)) out+="<h4>"+inl(l.replace(/^#{1,4}\s+/,""))+"</h4>";
+    else if (l.trim()) out+="<p>"+inl(l)+"</p>";
+  }
+  if (inUl) out+="</ul>"; return out;
+}
+function plain(text){ return String(text).replace(/\*\*/g,"").replace(/^#{1,4}\s+/gm,"").replace(/^\s*[-•*]\s+/gm,""); }
+function errCopy(e){
+  const c = e && e.code;
+  if (c==="not_granted"||c==="sampling_disabled"||c==="not_declared") return "Claude no está habilitado para esta página. Permitilo desde el menú Permisos del artifact.";
+  if (c==="rate_limited") return "Se alcanzó el límite de uso por ahora. Probá de nuevo en unos minutos.";
+  if (c==="prompt_too_large") return "Es demasiado texto de una vez. Cargá menos días por vez.";
+  if (c==="invalid_json") return "Claude respondió en un formato que no se pudo leer. Probá de nuevo.";
+  if (c==="session_expired") return "Tu sesión venció. Volvé a iniciar sesión en Claude.";
+  if (c==="cancelled") return "Detenido.";
+  return "No se pudo completar. Probá de nuevo.";
+}
+
+// ---------- Voz ----------
+let voice = null;
+function pickVoice(){ try{ const vs=speechSynthesis.getVoices(); voice = vs.find(v=>/es[-_]AR/i.test(v.lang)) || vs.find(v=>/es[-_](419|US|MX|UY|CL)/i.test(v.lang)) || vs.find(v=>/^es/i.test(v.lang)) || null; }catch(_){} }
+try{ pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; }catch(_){}
+function speak(text, onEnd){
+  try{
+    speechSynthesis.cancel();
+    const chunks = plain(text).split(/(?<=[.!?:])\s+|\n+/).filter(s=>s.trim());
+    chunks.forEach((c,i)=>{ const u=new SpeechSynthesisUtterance(c); u.lang=voice?voice.lang:"es-AR"; if(voice)u.voice=voice; u.rate=1.02; if(i===chunks.length-1&&onEnd)u.onend=onEnd; speechSynthesis.speak(u); });
+    return true;
+  }catch(_){ toast("Este dispositivo no permite leer en voz alta desde la página."); return false; }
+}
+function stopSpeak(){ try{ speechSynthesis.cancel(); }catch(_){} }
+
+// ---------- Pestañas ----------
+const TABS = ["hoy","resumen","alertas","cargar","historial"];
+function showTab(t){
+  if(!TABS.includes(t)) t="hoy";
+  document.querySelectorAll("nav.tabs button").forEach(b=>b.setAttribute("aria-selected", b.dataset.tab===t?"true":"false"));
+  TABS.forEach(x=>$("v-"+x).hidden = x!==t);
+  try{ localStorage.setItem("bp_tab",t); }catch(_){}
+}
+document.querySelectorAll("nav.tabs button").forEach(b=>b.addEventListener("click",()=>showTab(b.dataset.tab)));
+
+// ---------- Datos derivados ----------
+function allItems(){
+  const out=[];
+  for (const d of S.dias){ for (const it of (d.items||[])) out.push({...it, fecha:it.fecha||d.fecha, equipo_id:d.equipo_id, equipo_nombre:d.equipo_nombre, _doc:d._id}); }
+  out.sort((a,b)=> (b.fecha+(b.hora||"")).localeCompare(a.fecha+(a.hora||"")));
+  return out;
+}
+function eqName(id){ return (S.equipos[id] && S.equipos[id].nombre) || (S.dias.find(d=>d.equipo_id===id)||{}).equipo_nombre || id; }
+function openAlerts(){ return S.alertas.filter(a=>a.estado!=="resuelta").sort((a,b)=> sevRank(b.severidad)-sevRank(a.severidad) || (b.fecha+(b.hora||"")).localeCompare(a.fecha+(a.hora||""))); }
+
+// ---------- Render: Tablero ----------
+function renderHoy(){
+  const fSel = $("hoyFecha");
+  if (!fSel.value){
+    const t = today(); const has = S.dias.some(d=>d.fecha===t);
+    const latest = S.dias.map(d=>d.fecha).sort().pop();
+    fSel.value = has || !latest ? t : latest;
+  }
+  const f = fSel.value;
+  $("hoyTitle").textContent = "Estado de equipos · " + fechaLarga(f);
+  const dayDocs = S.dias.filter(d=>d.fecha===f);
+  const oa = openAlerts();
+  const ids = new Set([...Object.keys(S.equipos), ...dayDocs.map(d=>d.equipo_id), ...oa.map(a=>a.equipo_id)]);
+  const nItems = dayDocs.reduce((n,d)=>n+(d.items||[]).length,0);
+  const npt = dayDocs.reduce((n,d)=>n+(d.items||[]).reduce((m,i)=>m+(Number(i.npt_h)||0),0),0);
+  const crit = oa.filter(a=>sevRank(a.severidad)>=3).length;
+  $("kpis").innerHTML = `
+    <div class="kpi"><span class="lbl">Equipos</span><span class="v">${ids.size}</span></div>
+    <div class="kpi"><span class="lbl">Novedades del día</span><span class="v">${nItems}</span></div>
+    <div class="kpi"><span class="lbl">Alertas abiertas</span><span class="v">${oa.length}</span></div>
+    <div class="kpi"><span class="lbl">Altas / críticas</span><span class="v ${crit?"crit":""}">${crit}</span></div>
+    <div class="kpi"><span class="lbl">NPT reportado</span><span class="v">${npt?npt.toFixed(1).replace(".",","):"0"}<span class="lbl"> h</span></span></div>`;
+  if (!ids.size){
+    $("rigs").innerHTML = `<div class="panel empty" style="grid-column:1/-1">
+      <span class="lbl">Bitácora vacía</span>
+      <h3>Acá vas a ver cada equipo con su pozo, sección, profundidad, actividad y las novedades del día.</h3>
+      <p class="muted" style="margin:0;max-width:60ch">Empezá pegando los mensajes de WhatsApp de hoy en <b>Cargar</b>. Claude los interpreta, los asigna a cada equipo y arma las alertas. Los equipos se crean solos la primera vez que aparecen.</p>
+      <div class="row"><button class="btn primary" data-go="cargar">Cargar novedades</button><button class="btn" data-go="cargar" data-ex="1">Probar con un ejemplo</button></div></div>`;
+    return;
+  }
+  const order = [...ids].sort((a,b)=>{
+    const ca = oa.filter(x=>x.equipo_id===a).reduce((m,x)=>Math.max(m,sevRank(x.severidad)),-1);
+    const cb = oa.filter(x=>x.equipo_id===b).reduce((m,x)=>Math.max(m,sevRank(x.severidad)),-1);
+    return cb-ca || eqName(a).localeCompare(eqName(b),"es",{numeric:true});
+  });
+  $("rigs").innerHTML = order.map(id=>{
+    const e = S.equipos[id] || {};
+    const doc = dayDocs.find(d=>d.equipo_id===id);
+    const items = (doc?doc.items:[]).slice().sort((a,b)=>(a.hora||"").localeCompare(b.hora||""));
+    const al = oa.filter(a=>a.equipo_id===id);
+    const maxSev = al.reduce((m,x)=>Math.max(m,sevRank(x.severidad)),-1);
+    const prof = e.profundidad_m!=null && e.profundidad_m!=="" ? Number(e.profundidad_m).toLocaleString("es-AR")+" m" : "—";
+    return `<article class="rig ${maxSev>=3?"hot":""}">
+      <div class="rig-h"><div style="min-width:0;flex:1"><div class="name">${esc(eqName(id))}</div>
+        <div class="lbl">${e.pad?esc(e.pad)+" · ":""}${e.estado_fecha?"estado al "+esc(e.estado_fecha.slice(8,10)+"/"+e.estado_fecha.slice(5,7))+(e.estado_hora?" "+esc(e.estado_hora):""):"sin estado"}</div></div>
+        ${al.length?`<span class="pill s-${SEVS[maxSev]}">${al.length} alerta${al.length>1?"s":""}</span>`:`<span class="pill" style="color:var(--ok)">Sin alertas</span>`}</div>
+      <div class="rig-state"><div><div class="lbl">Pozo</div><div class="v">${esc(e.pozo||"—")}</div></div>
+        <div><div class="lbl">Sección</div><div class="v">${esc(e.seccion||"—")}</div></div>
+        <div><div class="lbl">Prof.</div><div class="v">${esc(prof)}</div></div></div>
+      ${e.actividad?`<div class="rig-act"><span class="lbl">Actividad </span>${esc(e.actividad)}</div>`:""}
+      ${items.length?`<ul class="items">${items.map(itemRow).join("")}</ul>`:`<div class="rig-act muted">Sin novedades cargadas para este día.</div>`}
+      ${al.length?`<div class="rig-f"><button class="btn small" data-go="alertas" data-eq="${esc(id)}">Ver alertas</button></div>`:""}
+    </article>`;
+  }).join("");
+}
+function itemRow(it){
+  const meta = [it.pozo&&("Pozo "+it.pozo), it.seccion, it.profundidad_m!=null&&it.profundidad_m!==""&&(Number(it.profundidad_m).toLocaleString("es-AR")+" m"), Number(it.npt_h)?("NPT "+String(it.npt_h).replace(".",",")+" h"):"", it.autor].filter(Boolean);
+  return `<li class="item"><span class="t">${esc(it.hora||"")}</span>${sevPill(it.severidad)}
+    <div class="body"><div class="res">${esc(it.resumen)}</div>${it.detalle&&it.detalle!==it.resumen?`<div class="det">${esc(it.detalle)}</div>`:""}
+    <div class="meta"><span>${esc(CATS[it.categoria]||it.categoria||"")}</span>${meta.map(m=>`<span>${esc(m)}</span>`).join("")}</div></div></li>`;
+}
+
+// ---------- Render: Alertas ----------
+function renderAlertas(){
+  const oa = openAlerts();
+  const b = $("alertBadge"); b.hidden = !oa.length; b.textContent = oa.length;
+  const sel = $("alertEq"); const cur = sel.value;
+  const eqs = [...new Set(S.alertas.map(a=>a.equipo_id))].sort((a,b)=>eqName(a).localeCompare(eqName(b),"es",{numeric:true}));
+  sel.innerHTML = `<option value="">Todos los equipos</option>`+eqs.map(id=>`<option value="${esc(id)}">${esc(eqName(id))}</option>`).join("");
+  sel.value = eqs.includes(cur)?cur:"";
+  const f = sel.value;
+  const list = oa.filter(a=>!f||a.equipo_id===f);
+  $("alertsOpen").innerHTML = list.length ? list.map(a=>alertRow(a,true)).join("") :
+    `<div class="note">${S.alertas.length?"No hay alertas abiertas"+(f?" para este equipo":"")+".":"Todavía no hay alertas. Claude las genera cuando una novedad requiere seguimiento: NPT, fallas, pérdidas, incidentes, demoras críticas."}</div>`;
+  const closed = S.alertas.filter(a=>a.estado==="resuelta"&&(!f||a.equipo_id===f)).sort((a,b)=>String(b.resuelta_en||"").localeCompare(String(a.resuelta_en||""))).slice(0,40);
+  $("closedWrap").hidden = !closed.length;
+  $("alertsClosed").innerHTML = closed.map(a=>alertRow(a,false)).join("");
+}
+function alertRow(a, open){
+  const dd = a.fecha? a.fecha.slice(8,10)+"/"+a.fecha.slice(5,7):"";
+  return `<div class="alert ${open?"":"closed"}">${sevPill(a.severidad)}
+    <div class="body"><div class="ttl">${esc(a.titulo)}</div>
+      <div class="lbl" style="margin-top:2px">${esc(eqName(a.equipo_id))} · ${esc(dd)} ${esc(a.hora||"")} · ${esc(CATS[a.categoria]||"")}</div>
+      ${a.detalle?`<div class="muted" style="font-size:.9rem;margin-top:4px">${esc(a.detalle)}</div>`:""}
+      ${!open&&a.motivo_cierre?`<div style="font-size:.88rem;margin-top:4px;color:var(--ok)">Resuelta: ${esc(a.motivo_cierre)}</div>`:""}</div>
+    <div class="act">${open&&S.canWrite?`<button class="btn small" data-close="${esc(a._id)}">Marcar resuelta</button>`:(!open&&S.canWrite?`<button class="btn small" data-reopen="${esc(a._id)}">Reabrir</button>`:"")}</div></div>`;
+}
+
+// ---------- Render: Historial ----------
+function renderHist(){
+  const fe=$("fEq"), fc=$("fCat");
+  const curE=fe.value, curC=fc.value;
+  const eqs=[...new Set(S.dias.map(d=>d.equipo_id))].sort((a,b)=>eqName(a).localeCompare(eqName(b),"es",{numeric:true}));
+  fe.innerHTML=`<option value="">Todos</option>`+eqs.map(id=>`<option value="${esc(id)}">${esc(eqName(id))}</option>`).join(""); fe.value=eqs.includes(curE)?curE:"";
+  if (fc.options.length<=1) fc.innerHTML=`<option value="">Todas</option>`+Object.entries(CATS).map(([k,v])=>`<option value="${k}">${esc(v)}</option>`).join("");
+  fc.value=curC;
+  const items = filtered();
+  $("histCount").textContent = items.length+" novedades";
+  $("csvBtn").hidden = !items.length || !S.downloads;
+  if (!S.dias.length){ $("hist").innerHTML=`<div class="note">Cuando guardes novedades, quedan acá ordenadas por día, con filtro por equipo, categoría, severidad y texto.</div>`; return; }
+  const byDay={}; for(const it of items.slice(0,600)) (byDay[it.fecha]=byDay[it.fecha]||[]).push(it);
+  const days=Object.keys(byDay).sort().reverse();
+  $("hist").innerHTML = days.length? days.map(d=>`<div class="day"><div class="day-h"><h3>${esc(fechaLarga(d))}</h3><span class="lbl">${byDay[d].length} novedades</span></div>
+    <ul class="items" style="padding:0">${byDay[d].map(it=>`<li class="item"><span class="t">${esc(it.hora||"")}</span><span class="rigname">${esc(eqName(it.equipo_id))}</span>${sevPill(it.severidad)}
+      <div class="body"><div class="res">${esc(it.resumen)}</div>${it.detalle&&it.detalle!==it.resumen?`<div class="det">${esc(it.detalle)}</div>`:""}
+      <div class="meta"><span>${esc(CATS[it.categoria]||it.categoria||"")}</span>${[it.pozo&&("Pozo "+it.pozo),it.seccion,it.profundidad_m!=null&&it.profundidad_m!==""&&(Number(it.profundidad_m).toLocaleString("es-AR")+" m"),Number(it.npt_h)?("NPT "+it.npt_h+" h"):"",it.autor].filter(Boolean).map(m=>`<span>${esc(m)}</span>`).join("")}</div></div>
+      ${S.canWrite?`<button class="del" data-del="${esc(it._doc)}|${esc(it.id)}" aria-label="Borrar novedad">Borrar</button>`:"<span></span>"}</li>`).join("")}</ul></div>`).join("")
+    : `<div class="note">Ninguna novedad coincide con los filtros.</div>`;
+}
+function filtered(){
+  const e=$("fEq").value,c=$("fCat").value,s=$("fSev").value,d1=$("fDesde").value,d2=$("fHasta").value,q=$("fTxt").value.trim().toLowerCase();
+  return allItems().filter(it=>(!e||it.equipo_id===e)&&(!c||it.categoria===c)&&(!s||sevRank(it.severidad)>=sevRank(s))&&(!d1||it.fecha>=d1)&&(!d2||it.fecha<=d2)
+    &&(!q||[it.resumen,it.detalle,it.pozo,it.seccion,it.autor,eqName(it.equipo_id)].join(" ").toLowerCase().includes(q)));
+}
+["fEq","fCat","fSev","fDesde","fHasta"].forEach(id=>$(id).addEventListener("change",renderHist));
+$("fTxt").addEventListener("input",()=>{clearTimeout(renderHist._t);renderHist._t=setTimeout(renderHist,200);});
+$("csvBtn").addEventListener("click", async ()=>{
+  const rows=[["fecha","hora","equipo","pozo","seccion","profundidad_m","categoria","severidad","npt_h","resumen","detalle","autor"]];
+  for(const it of filtered()) rows.push([it.fecha,it.hora,eqName(it.equipo_id),it.pozo,it.seccion,it.profundidad_m,CATS[it.categoria]||it.categoria,it.severidad,it.npt_h,it.resumen,it.detalle,it.autor]);
+  const csv="﻿"+rows.map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(";")).join("\r\n");
+  try{ await S.downloads.save({filename:"bitacora-perforacion-"+today()+".csv", data:new Blob([csv],{type:"text/csv"})}); }catch(_){ toast("No se descargó el archivo."); }
+});
+
+function renderAll(){ renderHoy(); renderAlertas(); renderHist(); }
+$("hoyFecha").addEventListener("change",renderHoy);
+
+// Clicks delegados
+document.addEventListener("click", async ev=>{
+  const g = ev.target.closest("[data-go]");
+  if (g){ showTab(g.dataset.go); if(g.dataset.eq){ $("alertEq").value=g.dataset.eq; renderAlertas(); } if(g.dataset.ex) loadExample(); window.scrollTo(0,0); return; }
+  const c = ev.target.closest("[data-close]");
+  if (c){ c.disabled=true; await setAlert(c.dataset.close,{estado:"resuelta",resuelta_en:new Date().toISOString(),motivo_cierre:"Cerrada manualmente"}); return; }
+  const r = ev.target.closest("[data-reopen]");
+  if (r){ r.disabled=true; await setAlert(r.dataset.reopen,{estado:"abierta",resuelta_en:null,motivo_cierre:null}); return; }
+  const d = ev.target.closest("[data-del]");
+  if (d){
+    if (!d.classList.contains("armed")){ d.classList.add("armed"); d.textContent="¿Borrar?"; setTimeout(()=>{d.classList.remove("armed");d.textContent="Borrar";},3500); return; }
+    const [docId,itemId]=d.dataset.del.split("|"); d.disabled=true;
+    try{ const ref=S.db.doc("dias/"+docId); const snap=await ref.get(); if(snap.exists){ const body=snap.data(); const items=(body.items||[]).filter(i=>i.id!==itemId);
+        if(items.length) await ref.set({...body,items,actualizado:new Date().toISOString()}); else await ref.delete(); } toast("Novedad borrada"); }
+    catch(e){ toast("No se pudo borrar."); d.disabled=false; }
+  }
+});
+async function setAlert(id,patch){
+  try{ await S.db.doc("alertas/"+id).update(patch); toast(patch.estado==="resuelta"?"Alerta resuelta":"Alerta reabierta"); }
+  catch(e){ toast("No se pudo actualizar la alerta."); renderAlertas(); }
+}
+
+// ---------- Lectura de WhatsApp ----------
+function normLine(l){ return l.replace(/[‎‏‪-‮﻿]/g,"").replace(/[  ]/g," ").replace(/\s+$/,""); }
+function mkDate(d,m,y,defY){ let Y = y? Number(y):defY; if(Y<100) Y+=2000; return Y+"-"+pad2(m)+"-"+pad2(d); }
+function mkHour(h,mi,ap){ h=Number(h); if(ap){ ap=ap.toLowerCase(); if(ap==="p"&&h<12)h+=12; if(ap==="a"&&h===12)h=0; } return pad2(h)+":"+pad2(mi); }
+const RX = [
+  // Android export: 14/10/26, 07:32 - Juan: texto  |  14/10/2026 7:32 p. m. - Juan: texto
+  [/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4}),?\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*(?:([ap])\.?\s*m\.?)?\s+-\s+([^:]{1,60}?):\s?(.*)$/i, m=>({d:m[1],mo:m[2],y:m[3],h:m[4],mi:m[5],ap:m[6],a:m[7],t:m[8]})],
+  // iOS export / copia: [14/10/26, 07:32:15] Juan: texto  |  [14/10, 07:32] Juan: texto
+  [/^\[(\d{1,2})[\/.-](\d{1,2})(?:[\/.-](\d{2,4}))?,?\s+(\d{1,2}):(\d{2})(?::\d{2})?\s*(?:([ap])\.?\s*m\.?)?\]\s*([^:]{1,60}?):\s?(.*)$/i, m=>({d:m[1],mo:m[2],y:m[3],h:m[4],mi:m[5],ap:m[6],a:m[7],t:m[8]})],
+  // WhatsApp Web / escritorio: [07:32, 14/10/2026] Juan: texto
+  [/^\[(\d{1,2}):(\d{2})(?:\s*([ap])\.?\s*m\.?)?,\s*(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})\]\s*([^:]{1,60}?):\s?(.*)$/i, m=>({d:m[4],mo:m[5],y:m[6],h:m[1],mi:m[2],ap:m[3],a:m[7],t:m[8]})]
+];
+const RX_SYS = /^\[?\d{1,2}[\/.-]\d{1,2}([\/.-]\d{2,4})?,?\s+\d{1,2}:\d{2}/;
+const JUNK = /(multimedia omitid|omitted|archivo adjunto|<adjunto|se eliminó este mensaje|this message was deleted|mensaje editado>$|^null$|sticker omitid|imagen omitid|audio omitid|video omitid|^<.*>$)/i;
+function parseWhatsApp(text, defFecha){
+  const defY = Number(defFecha.slice(0,4));
+  const msgs=[]; let cur=null;
+  for (const raw of text.split(/\r?\n/)){
+    const l = normLine(raw); let hit=null;
+    for (const [rx,f] of RX){ const m=l.match(rx); if(m){ hit=f(m); break; } }
+    if (hit){ cur={fecha:mkDate(hit.d,hit.mo,hit.y,defY), hora:mkHour(hit.h,hit.mi,hit.ap), autor:hit.a.trim(), texto:hit.t}; msgs.push(cur); }
+    else if (RX_SYS.test(l)) { cur=null; }   // mensajes del sistema (cifrado, se unió, etc.)
+    else if (cur && l.trim()) cur.texto += "\n"+l;
+  }
+  if (!msgs.length && text.trim()) return { parsed:false, msgs:[{fecha:defFecha,hora:"",autor:"",texto:text.trim()}] };
+  return { parsed:true, msgs: msgs.filter(m=>m.texto.trim() && !JUNK.test(m.texto.trim())) };
+}
+
+// ---------- Carga de archivos ----------
+const fileTexts = [];
+$("fileTxt").addEventListener("change", async e=>{
+  for (const f of e.target.files){ try{ fileTexts.push({name:f.name, text: await f.text()}); }catch(_){ toast("No se pudo leer "+f.name); } }
+  e.target.value=""; renderChips();
+});
+$("fileImg").addEventListener("change", e=>{ for(const f of e.target.files) S.images.push(f); e.target.value=""; renderChips(); });
+function renderChips(){
+  $("fileChips").innerHTML = fileTexts.map((f,i)=>`<span class="chip">${esc(f.name)} <button class="del" data-rmf="${i}" aria-label="Quitar">×</button></span>`).join("")
+    + S.images.map((f,i)=>`<span class="chip">🖼 ${esc(f.name)} <button class="del" data-rmi="${i}" aria-label="Quitar">×</button></span>`).join("");
+}
+$("fileChips").addEventListener("click",e=>{ const a=e.target.closest("[data-rmf]"), b=e.target.closest("[data-rmi]"); if(a){fileTexts.splice(+a.dataset.rmf,1);renderChips();} if(b){S.images.splice(+b.dataset.rmi,1);renderChips();} });
+$("raw").addEventListener("input",()=>{ S.isExample=false; });
+
+const EXAMPLE = `[13/10/26, 18:40] Company Man Eq. 101: Equipo 101 PAD Los Cardos. Pozo LC-3 sección guía 17 1/2" terminada a 508 m. Se baja casing 13 3/8.
+[13/10/26, 22:15] Company Man Eq. 101: Cementación casing guía OK, retornos en superficie. Esperando fragüe.
+[14/10/26, 05:50] Company Man Eq. 101: Skid a LC-4 terminado 05:30. Armando BHA guía.
+[14/10/26, 02:10] Jefe de equipo 205: Eq 205 – pozo AB-2 intermedia 12 1/4" a 2.140 m. Pérdida parcial de circulación 15 bbl/h desde 2.120 m. Bombeando píldora LCM.
+[14/10/26, 04:30] Jefe de equipo 205: Pérdida controlada, se reanuda perforación. NPT 2,5 h.
+[14/10/26, 06:05] Jefe de equipo 205: Top drive con alarma de temperatura, mantenimiento revisando. Perforando con parámetros reducidos.
+[14/10/26, 06:20] Logística: Para Eq 205 el camión de barita viene demorado por corte de ruta 7, llega mañana.
+[14/10/26, 06:30] Jefe de equipo 205: Buen día!! 👍`;
+function loadExample(){ $("raw").value = EXAMPLE; S.isExample=true; $("defFecha").value = "2026-10-14"; toast("Ejemplo cargado: son equipos ficticios, no se guarda."); }
+$("exBtn").addEventListener("click",loadExample);
+
+// ---------- Interpretación con Claude ----------
+let procCtl=null;
+$("procStop").addEventListener("click",()=>procCtl&&procCtl.abort());
+$("procBtn").addEventListener("click", processInput);
+
+function knownEquipos(){
+  return Object.entries(S.equipos).map(([id,e])=>({id, nombre:e.nombre, alias:(e.alias||[]).slice(0,8), pozo:e.pozo||"", seccion:e.seccion||""}));
+}
+function buildPrompt(msgLines, defFecha, hasImages){
+  const oa = openAlerts().slice(0,60).map(a=>({id:a._id, equipo_id:a.equipo_id, titulo:a.titulo, fecha:a.fecha}));
+  return `Sos el asistente de un supervisor de perforación en Argentina que maneja varios equipos (rigs) perforando en modalidad batch drilling: cada equipo trabaja en un PAD/locación con varios pozos, hace skid entre pozos y perfora la misma sección (guía, intermedia, producción/horizontal) en todos antes de pasar a la siguiente.
+
+Te paso mensajes de grupos de WhatsApp de los equipos${hasImages?" y también imágenes (capturas de chats o partes diarios): leé su contenido igual que los mensajes":""}. Extraé las NOVEDADES operativas.
+
+Equipos ya conocidos (usá su id si el mensaje se refiere a uno de ellos, aunque lo escriban distinto: "Eq 4", "equipo 4", "DLS-4", el nombre del jefe de equipo que siempre informa de ese equipo, el PAD o el pozo):
+${JSON.stringify(knownEquipos())}
+
+Alertas abiertas (si un mensaje indica que alguna se resolvió, incluila en cierra_alertas):
+${JSON.stringify(oa)}
+
+Fecha de referencia si un mensaje no trae fecha: ${defFecha}.
+
+Reglas:
+- Una novedad = un hecho operativo concreto. Ignorá saludos, agradecimientos, "ok", emojis sueltos y charla sin contenido operativo.
+- Si un mensaje trae hechos de distinto tipo, separalos en varias novedades. Si varios mensajes cuentan el mismo hecho, unificalos en una.
+- equipo_id: id del equipo conocido; si es un equipo nuevo, un id corto en minúsculas con guiones (p. ej. "eq-205") y equipo_nombre tal como lo nombran ("Equipo 205"). Si no se puede saber el equipo, usá "sin-equipo".
+- categoria: una de ${Object.keys(CATS).join(", ")}.
+- severidad: info (rutina, avance normal) | baja | media (desvío menor, demora, requiere seguimiento) | alta (NPT relevante, falla de equipo crítico, pérdida de circulación, demora logística que frena operación) | critica (incidente con personas o ambiente, influjo/kick, control de pozo, aprisionamiento, operación detenida).
+- alerta: true si el supervisor tiene que hacer seguimiento o actuar. alerta_titulo: una línea clara (≤90 caracteres) con equipo y problema.
+- npt_h: horas de tiempo no productivo si se mencionan (número), si no null.
+- profundidad_m: número en metros (2.140 m → 2140), si no null. seccion: guía / intermedia / producción / horizontal / aislación, o el diámetro si es lo único que dicen.
+- resumen: ≤120 caracteres, estilo parte diario, en español. detalle: datos técnicos relevantes (diámetros, caudales, parámetros, causas, acciones), o "".
+- msg: id del mensaje de origen ([m12] → "m12"); para imágenes, "img".
+- estado_equipos: para cada equipo mencionado, su situación MÁS RECIENTE según los mensajes: pad, pozo, seccion, profundidad_m, actividad (≤70 caracteres), fecha y hora de ese estado.
+
+Respondé SOLO con JSON, con esta forma:
+{"novedades":[{"msg":"m1","fecha":"YYYY-MM-DD","hora":"HH:MM","autor":"","equipo_id":"","equipo_nombre":"","pad":"","pozo":"","seccion":"","profundidad_m":null,"categoria":"","severidad":"","npt_h":null,"resumen":"","detalle":"","alerta":false,"alerta_titulo":""}],
+ "estado_equipos":[{"equipo_id":"","equipo_nombre":"","pad":"","pozo":"","seccion":"","profundidad_m":null,"actividad":"","fecha":"YYYY-MM-DD","hora":"HH:MM"}],
+ "cierra_alertas":[{"id":"","motivo":""}]}
+
+Mensajes ([id] fecha hora | autor: texto):
+${msgLines.join("\n")}`;
+}
+
+async function processInput(){
+  if (!S.sample){ toast("Claude no está disponible en esta vista."); return; }
+  const defFecha = $("defFecha").value || today();
+  const sources = [];
+  if ($("raw").value.trim()) sources.push($("raw").value);
+  for (const f of fileTexts) sources.push(f.text);
+  if (!sources.length && !S.images.length){ toast("Pegá mensajes o subí un chat exportado."); return; }
+
+  // 1) parsear y descartar ya vistos
+  let all=[], anyParsed=false;
+  for (const s of sources){ const r=parseWhatsApp(s,defFecha); anyParsed = anyParsed||r.parsed; all.push(...r.msgs); }
+  for (const m of all) m.h = hash(m.fecha+"|"+m.hora+"|"+m.autor+"|"+m.texto);
+  const seen = new Set((S.vistos&&S.vistos.h)||[]);
+  const uniq=[], local=new Set();
+  let skipped=0;
+  for (const m of all){ if(seen.has(m.h)){skipped++;continue;} if(local.has(m.h))continue; local.add(m.h); uniq.push(m); }
+  uniq.sort((a,b)=>(a.fecha+a.hora).localeCompare(b.fecha+b.hora));
+  if (!uniq.length && !S.images.length){ toast(skipped? "Todos esos mensajes ya estaban cargados." : "No encontré mensajes con contenido."); return; }
+  uniq.forEach((m,i)=>m.id="m"+(i+1));
+
+  // 2) dividir en tandas
+  const lines = uniq.map(m=>`[${m.id}] ${m.fecha} ${m.hora} | ${m.autor}: ${m.texto.slice(0,3000)}`);
+  const chunks=[]; let curC=[], size=0;
+  for (const l of lines){ if(size+l.length>40000 && curC.length){chunks.push(curC);curC=[];size=0;} curC.push(l); size+=l.length+1; }
+  if (curC.length || !chunks.length) chunks.push(curC);
+
+  procCtl = new AbortController();
+  $("procBtn").disabled=true; $("procStop").hidden=false;
+  const result={novedades:[],estado_equipos:[],cierra_alertas:[]};
+  try{
+    for (let i=0;i<chunks.length;i++){
+      $("procStatus").textContent = `Claude está leyendo ${uniq.length} mensajes${S.images.length?" y "+S.images.length+" imágenes":""}`+(chunks.length>1?` (tanda ${i+1} de ${chunks.length})`:"")+"…";
+      const imgs = i===0 && S.images.length && S.imgOK ? S.images : undefined;
+      const r = await S.sample.json(buildPrompt(chunks[i].length?chunks[i]:["(sin mensajes de texto: solo imágenes)"], defFecha, !!imgs), {signal:procCtl.signal, images:imgs, cache:false});
+      if (r && Array.isArray(r.novedades)) result.novedades.push(...r.novedades);
+      if (r && Array.isArray(r.estado_equipos)) result.estado_equipos.push(...r.estado_equipos);
+      if (r && Array.isArray(r.cierra_alertas)) result.cierra_alertas.push(...r.cierra_alertas);
+    }
+  }catch(e){
+    $("procStatus").textContent = errCopy(e);
+    $("procBtn").disabled=false; $("procStop").hidden=true; return;
+  }
+  $("procBtn").disabled=false; $("procStop").hidden=true;
+  $("procStatus").textContent = skipped? `${skipped} mensajes ya cargados se saltearon.` : "";
+  const byId = Object.fromEntries(uniq.map(m=>[m.id,m]));
+  result.novedades = result.novedades.filter(n=>n && n.resumen).map((n,i)=>{
+    const src = byId[n.msg];
+    const eq = matchEquipo(n.equipo_id, n.equipo_nombre);
+    return { ...n, equipo_id:eq.id, equipo_nombre:eq.nombre, fecha:/^\d{4}-\d{2}-\d{2}$/.test(n.fecha||"")?n.fecha:(src?src.fecha:defFecha),
+      hora:/^\d{1,2}:\d{2}$/.test(n.hora||"")?n.hora.padStart(5,"0"):(src?src.hora:""), autor:n.autor||(src?src.autor:""),
+      categoria: CATS[n.categoria]?n.categoria:"otros", severidad: SEVS.includes(n.severidad)?n.severidad:"info",
+      _on:true, _k:i };
+  });
+  S.preview = { ...result, hashes:uniq.map(m=>m.h), nMsgs:uniq.length, raw:sources.join("\n\n").slice(0,180000), example:S.isExample };
+  renderPreview();
+}
+function matchEquipo(id, nombre){
+  const sid = slug(id), sn = slug(nombre);
+  for (const [k,e] of Object.entries(S.equipos)){
+    if (k===sid || slug(e.nombre)===sn || slug(e.nombre)===sid || (e.alias||[]).some(a=>slug(a)===sn||slug(a)===sid)) return {id:k, nombre:e.nombre};
+  }
+  return { id: sid, nombre: nombre || id || "Sin equipo" };
+}
+
+function renderPreview(){
+  const p=S.preview; $("previewWrap").hidden=!p; if(!p) return;
+  const on=p.novedades.filter(n=>n._on);
+  $("pvTitle").textContent = `${p.novedades.length} novedades interpretadas de ${p.nMsgs} mensajes`;
+  $("pvSave").disabled = p.example || !on.length || !S.db || !S.canWrite;
+  $("pvNote").innerHTML = p.example ? `<div class="note warn">Es el ejemplo con equipos ficticios: se muestra cómo queda, pero no se guarda.</div>`
+    : (!p.novedades.length? `<div class="note">Claude no encontró novedades operativas en esos mensajes.</div>`:"");
+  const cl = p.cierra_alertas.filter(c=>S.alertas.some(a=>a._id===c.id&&a.estado!=="resuelta"));
+  $("pvClose").innerHTML = cl.length? `<div class="note" style="color:var(--ink)"><b>Se van a cerrar ${cl.length} alerta(s):</b> ${cl.map(c=>{const a=S.alertas.find(x=>x._id===c.id);return esc(a.titulo)+(c.motivo?" — "+esc(c.motivo):"");}).join("; ")}</div>`:"";
+  const eqOpts = id => { const ids=[...new Set([...Object.keys(S.equipos), ...p.novedades.map(n=>n.equipo_id)])];
+    return ids.map(x=>`<option value="${esc(x)}" ${x===id?"selected":""}>${esc(S.equipos[x]?S.equipos[x].nombre:(p.novedades.find(n=>n.equipo_id===x)||{}).equipo_nombre||x)}</option>`).join(""); };
+  $("pvList").innerHTML = p.novedades.map(n=>`<li class="item ${n._on?"":"off"}">
+    <input type="checkbox" id="pv${n._k}" data-k="${n._k}" ${n._on?"checked":""} aria-label="Incluir">
+    <span class="t">${esc(n.fecha.slice(8,10)+"/"+n.fecha.slice(5,7))}<br>${esc(n.hora)}</span>
+    <div class="body"><div class="res">${esc(n.resumen)}${n.alerta?` <span class="pill s-${n.severidad}" title="${esc(n.alerta_titulo)}">genera alerta</span>`:""}</div>
+      ${n.detalle?`<div class="det">${esc(n.detalle)}</div>`:""}
+      <div class="row" style="margin-top:6px;gap:6px">
+        <select data-k="${n._k}" data-f="equipo_id" aria-label="Equipo">${eqOpts(n.equipo_id)}</select>
+        <select data-k="${n._k}" data-f="severidad" aria-label="Severidad">${SEVS.map(s=>`<option value="${s}" ${s===n.severidad?"selected":""}>${SEV_LBL[s]}</option>`).join("")}</select>
+        <select data-k="${n._k}" data-f="categoria" aria-label="Categoría">${Object.entries(CATS).map(([k,v])=>`<option value="${k}" ${k===n.categoria?"selected":""}>${esc(v)}</option>`).join("")}</select>
+        <label class="lbl" style="display:flex;gap:4px;align-items:center"><input type="checkbox" data-k="${n._k}" data-f="alerta" ${n.alerta?"checked":""}>alerta</label>
+      </div></div></li>`).join("");
+  $("previewWrap").scrollIntoView({behavior:"smooth",block:"start"});
+}
+$("pvList").addEventListener("change",e=>{
+  const k=e.target.dataset.k; if(k==null||!S.preview) return; const n=S.preview.novedades.find(x=>String(x._k)===k); if(!n) return;
+  const f=e.target.dataset.f;
+  if(!f){ n._on=e.target.checked; e.target.closest(".item").classList.toggle("off",!n._on); $("pvSave").disabled = S.preview.example || !S.preview.novedades.some(x=>x._on); return; }
+  if(f==="alerta"){ n.alerta=e.target.checked; if(n.alerta&&!n.alerta_titulo) n.alerta_titulo=n.resumen; return; }
+  n[f]=e.target.value;
+  if(f==="equipo_id"){ n.equipo_nombre = S.equipos[n.equipo_id]?S.equipos[n.equipo_id].nombre:(S.preview.novedades.find(x=>x.equipo_id===n.equipo_id&&x!==n)||{}).equipo_nombre||n.equipo_id; }
+});
+$("pvDiscard").addEventListener("click",()=>{ S.preview=null; renderPreview(); });
+$("pvSave").addEventListener("click", saveBatch);
+
+// ---------- Guardado ----------
+async function saveBatch(){
+  const p=S.preview; if(!p||p.example||!S.db) return;
+  const sel=p.novedades.filter(n=>n._on); if(!sel.length) return;
+  const btn=$("pvSave"); btn.disabled=true; btn.textContent="Guardando…";
+  const now=new Date().toISOString();
+  try{
+    // novedades agrupadas por día y equipo
+    const groups={};
+    for (const n of sel){
+      const item={ id:"n"+hash(n.fecha+n.hora+n.equipo_id+n.resumen+n.msg), fecha:n.fecha, hora:n.hora||"", autor:n.autor||"", pad:n.pad||"", pozo:n.pozo||"", seccion:n.seccion||"",
+        profundidad_m: n.profundidad_m==null||n.profundidad_m===""?null:Number(n.profundidad_m)||null, categoria:n.categoria, severidad:n.severidad,
+        npt_h: n.npt_h==null||n.npt_h===""?null:Number(String(n.npt_h).replace(",","."))||null, resumen:String(n.resumen).slice(0,300), detalle:String(n.detalle||"").slice(0,1500), alerta:!!n.alerta, cargado:now };
+      n._itemId=item.id;
+      const key=n.fecha+"__"+n.equipo_id;
+      (groups[key]=groups[key]||{fecha:n.fecha,equipo_id:n.equipo_id,equipo_nombre:n.equipo_nombre,items:[]}).items.push(item);
+    }
+    for (const [key,g] of Object.entries(groups)){
+      const ref=S.db.doc("dias/"+key); const snap=await ref.get();
+      const prev = snap.exists? (snap.data().items||[]) : [];
+      const ids=new Set(prev.map(i=>i.id));
+      const items=[...prev, ...g.items.filter(i=>!ids.has(i.id))].sort((a,b)=>(a.hora||"").localeCompare(b.hora||""));
+      await ref.set({fecha:g.fecha, equipo_id:g.equipo_id, equipo_nombre:g.equipo_nombre, items, actualizado:now});
+    }
+    // equipos y su estado más reciente
+    const eqIds=[...new Set(sel.map(n=>n.equipo_id))];
+    for (const id of eqIds){
+      const ref=S.db.doc("equipos/"+id); const snap=await ref.get(); const prev=snap.exists?{...snap.data()}:{};
+      const nm = sel.find(n=>n.equipo_id===id).equipo_nombre;
+      const alias=[...new Set([...(prev.alias||[]), nm, ...p.novedades.filter(n=>n.equipo_id===id).map(n=>n.equipo_nombre)].filter(Boolean))].slice(0,20);
+      const st = p.estado_equipos.map(s=>({...s, _m:matchEquipo(s.equipo_id,s.equipo_nombre)})).filter(s=>s._m.id===id)
+        .sort((a,b)=>((b.fecha||"")+(b.hora||"")).localeCompare((a.fecha||"")+(a.hora||"")))[0];
+      const body={...prev, nombre:prev.nombre||nm, alias, actualizado:now};
+      if (st && ((st.fecha||"")+(st.hora||"")) >= ((prev.estado_fecha||"")+(prev.estado_hora||""))){
+        Object.assign(body,{ pad:st.pad||prev.pad||"", pozo:st.pozo||prev.pozo||"", seccion:st.seccion||prev.seccion||"",
+          profundidad_m: st.profundidad_m!=null&&st.profundidad_m!==""?Number(st.profundidad_m):(prev.profundidad_m??null), actividad:st.actividad||prev.actividad||"",
+          estado_fecha:st.fecha||"", estado_hora:st.hora||"" });
+      }
+      await ref.set(body);
+    }
+    // alertas nuevas
+    for (const n of sel.filter(n=>n.alerta)){
+      await S.db.doc("alertas/a"+n._itemId.slice(1)).set({ equipo_id:n.equipo_id, fecha:n.fecha, hora:n.hora||"", severidad:n.severidad==="info"?"media":n.severidad, categoria:n.categoria,
+        titulo:String(n.alerta_titulo||n.resumen).slice(0,200), detalle:String(n.detalle||"").slice(0,800), novedad:n._itemId, estado:"abierta", creada:now });
+    }
+    // alertas que se resolvieron
+    for (const c of p.cierra_alertas){
+      if (S.alertas.some(a=>a._id===c.id&&a.estado!=="resuelta"))
+        await S.db.doc("alertas/"+c.id).update({estado:"resuelta", resuelta_en:now, motivo_cierre:String(c.motivo||"Informada como resuelta").slice(0,300)});
+    }
+    // mensajes ya vistos (para no duplicar si se vuelve a exportar el chat)
+    const h=[...((S.vistos&&S.vistos.h)||[]), ...p.hashes].slice(-12000);
+    await S.db.doc("meta/vistos").set({h, actualizado:now}); S.vistos={h};
+    // lote original, para auditoría
+    await S.db.collection("lotes").add({cargado:now, mensajes:p.nMsgs, novedades:sel.length, texto:p.raw});
+    toast(`Guardadas ${sel.length} novedades`);
+    S.preview=null; renderPreview(); $("raw").value=""; fileTexts.length=0; S.images=[]; renderChips();
+    $("hoyFecha").value=""; showTab("hoy"); renderHoy();
+  }catch(e){
+    toast(e&&e.code==="quota_exceeded"?"La base llegó a su límite de tamaño.":"No se pudo guardar todo. Revisá el historial y probá de nuevo.");
+  }finally{ btn.textContent="Guardar en la bitácora"; btn.disabled=false; }
+}
+
+// ---------- Resumen de la mañana ----------
+let briefCtl=null, briefText="";
+function compactItems(hours){
+  const since = new Date(Date.now()-hours*3600e3); const sinceIso=isoLocal(since)+" "+pad2(since.getHours())+":"+pad2(since.getMinutes());
+  return allItems().filter(it=>(it.fecha+" "+(it.hora||"00:00"))>=sinceIso).reverse()
+    .map(it=>`${it.fecha} ${it.hora||"--:--"} | ${eqName(it.equipo_id)} | ${it.severidad} | ${CATS[it.categoria]||it.categoria} | ${it.pozo?("pozo "+it.pozo+" "):""}${it.seccion||""}${it.profundidad_m?(" "+it.profundidad_m+" m"):""}${it.npt_h?(" NPT "+it.npt_h+" h"):""} | ${it.resumen}${it.detalle?" — "+it.detalle:""}`);
+}
+function equiposTxt(){ return Object.entries(S.equipos).map(([id,e])=>`- ${e.nombre}: PAD ${e.pad||"?"}, pozo ${e.pozo||"?"}, sección ${e.seccion||"?"}, ${e.profundidad_m?e.profundidad_m+" m":"prof. ?"}, actividad: ${e.actividad||"?"} (al ${e.estado_fecha||"?"} ${e.estado_hora||""})`).join("\n"); }
+function alertasTxt(){ return openAlerts().map(a=>`- [${a.severidad}] ${eqName(a.equipo_id)} · ${a.fecha} ${a.hora||""}: ${a.titulo}`).join("\n")||"(ninguna)"; }
+$("briefBtn").addEventListener("click", async ()=>{
+  if (!S.sample){ toast("Claude no está disponible en esta vista."); return; }
+  const hours=Number($("briefRange").value); const lines=compactItems(hours);
+  if (!lines.length && !openAlerts().length){ $("briefOut").innerHTML=`<p class="muted">No hay novedades cargadas en ese período.</p>`; return; }
+  briefCtl=new AbortController(); $("briefBtn").disabled=true; $("briefOut").innerHTML=`<p class="muted">Claude está leyendo ${lines.length} novedades…</p>`; stopSpeak();
+  const prompt=`Sos el asistente de un supervisor de perforación (equipos en batch drilling, Argentina). Hoy es ${fechaLarga(today())}. Armale el resumen de la mañana, para leer o escuchar en 2 minutos, en español rioplatense, claro y directo, sin saludos largos.
+
+Estructura:
+1. Una línea inicial con lo más importante del día.
+2. "## Lo urgente": alertas altas o críticas y qué requiere decisión hoy. Si no hay, decilo en una línea.
+3. "## Por equipo": para cada equipo, 2 a 4 viñetas: dónde está (PAD, pozo, sección, profundidad), qué hizo en el período, problemas/NPT, qué sigue.
+4. "## Pendientes y seguimiento": logística, mantenimiento, cosas para llamar o confirmar.
+Usá números con unidades (m, h, bbl). No inventes datos que no estén abajo. Formato: títulos con "## ", viñetas con "- ", negrita con **.
+
+Estado actual de los equipos:
+${equiposTxt()||"(sin datos)"}
+
+Alertas abiertas:
+${alertasTxt()}
+
+Novedades de las últimas ${hours} h (fecha hora | equipo | severidad | categoría | ubicación | hecho):
+${lines.join("\n").slice(0,150000)}`;
+  try{
+    const r=await S.sample(prompt,{signal:briefCtl.signal, cache:false, onText:({text})=>{ $("briefOut").innerHTML=mdLite(text); }});
+    briefText=r.text; $("briefOut").innerHTML=mdLite(r.text); $("briefSpeak").hidden=false;
+    $("briefMeta").textContent=`Generado ${new Date().toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"})} · ${lines.length} novedades · últimas ${hours} h`;
+    if (S.db && S.canWrite) S.db.doc("resumenes/"+today()).set({texto:r.text, generado:new Date().toISOString(), horas:hours}).catch(()=>{});
+  }catch(e){ $("briefOut").innerHTML=(e&&e.text?mdLite(e.text):"")+`<p class="muted">${esc(errCopy(e))}</p>`; }
+  finally{ $("briefBtn").disabled=false; }
+});
+$("briefSpeak").addEventListener("click",()=>{ if(briefText && speak(briefText,()=>{$("briefStop").hidden=true;})) $("briefStop").hidden=false; });
+$("briefStop").addEventListener("click",()=>{ stopSpeak(); $("briefStop").hidden=true; });
+
+// ---------- Chat ----------
+let turns=[], chatCtl=null;
+const RULES = () => `Sos el asistente de un supervisor de perforación en Argentina (equipos en batch drilling). Respondé en español rioplatense, breve y concreto, con números y unidades. Hoy es ${fechaLarga(today())} (${today()}). Respondé solo con datos de la bitácora; si no está, decilo.
+${S.toolsOK?"Usá las herramientas para buscar en la bitácora antes de responder.":""}
+Estado de los equipos:
+${equiposTxt()||"(sin datos)"}
+Alertas abiertas:
+${alertasTxt()}
+${S.toolsOK?"":"Novedades de los últimos 7 días:\n"+compactItems(24*7).join("\n").slice(0,120000)}`;
+const TOOLS = [
+  { name:"buscar_novedades", description:"Busca novedades en la bitácora histórica. Devuelve hasta 120 novedades (fecha, hora, equipo, severidad, categoría, pozo, sección, profundidad, NPT, resumen, detalle), más recientes primero.",
+    inputSchema:{type:"object",properties:{equipo:{type:"string",description:"nombre o id del equipo (opcional)"},desde:{type:"string",description:"YYYY-MM-DD"},hasta:{type:"string",description:"YYYY-MM-DD"},texto:{type:"string",description:"palabra a buscar"},categoria:{type:"string",enum:Object.keys(CATS)},severidad_min:{type:"string",enum:SEVS}}},
+    execute(inp){
+      const eq = inp.equipo? slug(String(inp.equipo)) : ""; const q = String(inp.texto||"").toLowerCase();
+      return allItems().filter(it=>(!eq||it.equipo_id===eq||slug(eqName(it.equipo_id)).includes(eq))&&(!inp.desde||it.fecha>=String(inp.desde))&&(!inp.hasta||it.fecha<=String(inp.hasta))
+        &&(!inp.categoria||it.categoria===inp.categoria)&&(!inp.severidad_min||sevRank(it.severidad)>=sevRank(String(inp.severidad_min)))
+        &&(!q||[it.resumen,it.detalle,it.pozo,it.seccion].join(" ").toLowerCase().includes(q)))
+        .slice(0,120).map(it=>({f:it.fecha,h:it.hora,eq:eqName(it.equipo_id),sev:it.severidad,cat:it.categoria,pozo:it.pozo,sec:it.seccion,m:it.profundidad_m,npt:it.npt_h,res:it.resumen,det:(it.detalle||"").slice(0,200)}));
+    }},
+  { name:"alertas", description:"Lista alertas de la bitácora. estado: abierta | resuelta | todas.",
+    inputSchema:{type:"object",properties:{estado:{type:"string",enum:["abierta","resuelta","todas"]}}},
+    execute(inp){ const st=String(inp.estado||"abierta"); return S.alertas.filter(a=>st==="todas"||(st==="abierta"?a.estado!=="resuelta":a.estado==="resuelta")).slice(0,100)
+      .map(a=>({eq:eqName(a.equipo_id),f:a.fecha,h:a.hora,sev:a.severidad,titulo:a.titulo,estado:a.estado,cierre:a.motivo_cierre||""})); }}
+];
+function renderChat(){
+  $("chat").innerHTML = turns.map((t,i)=> t.role==="user" ? `<div class="msg me">${esc(t.content)}</div>`
+    : `<div class="msg ai"><div class="brief">${mdLite(t.content)}</div><button class="del" data-say="${i}">▶ Escuchar</button></div>`).join("");
+}
+$("chat").addEventListener("click",e=>{ const b=e.target.closest("[data-say]"); if(b) speak(turns[+b.dataset.say].content); });
+$("chatClear").addEventListener("click",()=>{ chatCtl&&chatCtl.abort(); turns=[]; renderChat(); });
+$("sugs").addEventListener("click",e=>{ const b=e.target.closest("button"); if(b){ $("askBox").value=b.textContent; ask(); } });
+$("askBtn").addEventListener("click",ask);
+$("askBox").addEventListener("keydown",e=>{ if(e.key==="Enter"&&!e.shiftKey){ e.preventDefault(); ask(); } });
+async function ask(){
+  const q=$("askBox").value.trim(); if(!q) return;
+  if (!S.sample){ toast("Claude no está disponible en esta vista."); return; }
+  $("askBox").value=""; turns.push({role:"user",content:q}); renderChat();
+  const bubble=document.createElement("div"); bubble.className="msg ai"; bubble.innerHTML=`<span class="muted">Buscando en la bitácora…</span>`; $("chat").appendChild(bubble);
+  chatCtl=new AbortController(); $("askBtn").disabled=true;
+  const hist=turns.slice(-12);
+  try{
+    const opts={signal:chatCtl.signal, onText:({text})=>{ bubble.innerHTML=`<div class="brief">${mdLite(text)}</div>`; }};
+    if (S.toolsOK) opts.tools=TOOLS; else opts.cache=false;
+    const r=await S.sample([{role:"user",content:RULES()}, ...hist], opts);
+    turns.push({role:"assistant",content:r.text}); renderChat();
+  }catch(e){ bubble.innerHTML=`<span class="muted">${esc(errCopy(e))}</span>`; turns.pop(); }
+  finally{ $("askBtn").disabled=false; }
+}
+
+// ---------- Arranque ----------
+$("defFecha").value=today();
+$("hdrSub").textContent = "Batch drilling · " + fechaLarga(today());
+try{ const t=localStorage.getItem("bp_tab"); if(t) showTab(t); }catch(_){}
+renderAll();
+
+(async()=>{
+  if (!window.claude || !claude.use){ dbOff("Abrí esta página desde claude.ai para usar la base de datos y Claude."); return; }
+  const [db, sample, user, downloads] = await Promise.all([claude.use("db"), claude.use("sample"), claude.use("user"), claude.use("downloads")]);
+  S.db=db; S.sample=sample; S.user=user; S.downloads=downloads;
+  if (user){ try{ const c=await user.can("data.write"); if(c===false) S.canWrite=false; }catch(_){} }
+  if (sample){ try{ const lim=await sample.limits(); S.imgOK=!!lim.images; S.toolsOK=!!lim.tools; }catch(_){} }
+  $("imgLbl").hidden=!S.imgOK;
+  if (!sample){ $("procBtn").disabled=true; $("briefBtn").disabled=true; $("askBtn").disabled=true; }
+  if (!S.canWrite){ $("procBtn").disabled=true; $("procStatus").textContent="Tenés acceso de lectura: no podés cargar novedades."; }
+  if (!db){ dbOff("La base de datos no está disponible en esta vista. Iniciá sesión en claude.ai para ver y guardar la bitácora."); return; }
+  const onErr = e => { if(e&&e.code==="revoked") dbOff("Se retiró el acceso a la base de datos en esta vista."); };
+  db.collection("dias").orderBy("fecha","desc").limit(1000).onSnapshot(s=>{ S.dias=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, onErr);
+  db.collection("equipos").onSnapshot(s=>{ S.equipos=Object.fromEntries(s.docs.map(d=>[d.id,d.data()])); renderAll(); }, onErr);
+  db.collection("alertas").orderBy("creada","desc").limit(800).onSnapshot(s=>{ S.alertas=s.docs.map(d=>({...d.data(),_id:d.id})); renderAll(); }, onErr);
+  db.doc("meta/vistos").onSnapshot(s=>{ S.vistos=s.exists?s.data():{h:[]}; }, onErr);
+  db.doc("resumenes/"+today()).get().then(s=>{ if(s.exists&&!briefText){ briefText=s.data().texto; $("briefOut").innerHTML=mdLite(briefText); $("briefSpeak").hidden=false;
+    $("briefMeta").textContent="Resumen de hoy generado a las "+new Date(s.data().generado).toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}); } }).catch(()=>{});
+})();
+function dbOff(msg){ const n=$("dbNote"); n.hidden=false; n.textContent=msg; }
+})();
+</script>
